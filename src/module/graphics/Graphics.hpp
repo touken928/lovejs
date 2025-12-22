@@ -1,24 +1,29 @@
 #pragma once
-#include "../../core/JSEngine.hpp"
+#include "../../core/SDLManager.hpp"
 #include "Renderer.hpp"
 #include "Texture.hpp"
 #include "Color.hpp"
-#include "Math.hpp"
 #include <memory>
 #include <unordered_map>
 #include <string>
 #include <iostream>
 
+/**
+ * Graphics - 图形模块核心类
+ * 负责管理渲染器和纹理资源，提供统一的图形接口
+ */
 class Graphics {
 public:
+    // 获取渲染器实例
     static Renderer& getRenderer() {
-        if (!renderer_) {
-            renderer_ = std::make_unique<Renderer>();
-        }
+        ensureInitialized();
         return *renderer_;
     }
     
+    // 纹理管理
     static std::shared_ptr<Texture> loadTexture(const std::string& path) {
+        ensureInitialized();
+        
         auto it = textures_.find(path);
         if (it != textures_.end()) {
             return it->second;
@@ -38,71 +43,63 @@ public:
         textures_.erase(path);
     }
     
-    static void clearTextures() {
+    static void clearAllTextures() {
         textures_.clear();
     }
-
-private:
-    static std::unique_ptr<Renderer> renderer_;
-    static std::unordered_map<std::string, std::shared_ptr<Texture>> textures_;
     
-    // JS绑定函数
-    static void jsSetWindow(const std::string& title, int width, int height) {
-        if (renderer_) {
-            renderer_->createWindow(title, width, height);
-        }
+    // 窗口管理
+    static void setWindow(const std::string& title, int width, int height) {
+        ensureInitialized();
+        renderer_->createWindow(title, width, height);
     }
     
-    static void jsClear(double r, double g, double b, double a) {
-        if (renderer_) {
-            renderer_->clear(Color(r, g, b, a));
-        }
+    static Size getWindowSize() {
+        ensureInitialized();
+        return renderer_->getWindowSize();
     }
     
-    static void jsPresent() {
-        if (renderer_) {
-            renderer_->present();
-        }
+    // 渲染控制
+    static void clear(const Color& color = Color::BLACK) {
+        ensureInitialized();
+        renderer_->clear(color);
     }
     
-    static void jsSetColor(double r, double g, double b, double a) {
-        if (renderer_) {
-            renderer_->setColor(Color(r, g, b, a));
-        }
+    static void present() {
+        ensureInitialized();
+        renderer_->present();
     }
     
-    static void jsDrawPoint(double x, double y) {
-        if (renderer_) {
-            renderer_->drawPoint(x, y);
-        }
+    // 颜色设置
+    static void setColor(const Color& color) {
+        ensureInitialized();
+        renderer_->setColor(color);
     }
     
-    static void jsDrawLine(double x1, double y1, double x2, double y2) {
-        if (renderer_) {
-            renderer_->drawLine(x1, y1, x2, y2);
-        }
+    // 基本绘制
+    static void drawPoint(double x, double y) {
+        ensureInitialized();
+        renderer_->drawPoint(x, y);
     }
     
-    static void jsDrawRectangle(double x, double y, double width, double height, bool filled) {
-        if (renderer_) {
-            renderer_->drawRectangle(Rect(x, y, width, height), filled);
-        }
+    static void drawLine(double x1, double y1, double x2, double y2) {
+        ensureInitialized();
+        renderer_->drawLine(x1, y1, x2, y2);
     }
     
-    static void jsDrawCircle(double x, double y, double radius, bool filled) {
-        if (renderer_) {
-            renderer_->drawCircle(x, y, radius, filled);
-        }
+    static void drawRectangle(double x, double y, double width, double height, bool filled = false) {
+        ensureInitialized();
+        renderer_->drawRectangle(Rect(x, y, width, height), filled);
     }
     
-    static std::string jsLoadTexture(const std::string& path) {
-        auto texture = loadTexture(path);
-        return texture ? path : "";
+    static void drawCircle(double x, double y, double radius, bool filled = false) {
+        ensureInitialized();
+        renderer_->drawCircle(x, y, radius, filled);
     }
     
-    static void jsDrawTexture(const std::string& textureId, double x, double y, 
-                             double rotation, double scaleX, double scaleY) {
-        if (!renderer_) return;
+    // 纹理绘制
+    static void drawTexture(const std::string& textureId, double x, double y, 
+                           double rotation = 0.0, double scaleX = 1.0, double scaleY = 1.0) {
+        ensureInitialized();
         
         auto it = textures_.find(textureId);
         if (it != textures_.end()) {
@@ -110,51 +107,52 @@ private:
         }
     }
     
-    static void jsPushMatrix() {
-        if (renderer_) {
-            renderer_->pushMatrix();
+    // 变换管理
+    static void pushMatrix() {
+        ensureInitialized();
+        renderer_->pushMatrix();
+    }
+    
+    static void popMatrix() {
+        ensureInitialized();
+        renderer_->popMatrix();
+    }
+    
+    static void translate(double x, double y) {
+        ensureInitialized();
+        renderer_->translate(x, y);
+    }
+    
+    static void rotate(double angle) {
+        ensureInitialized();
+        renderer_->rotate(angle);
+    }
+    
+    static void scale(double x, double y) {
+        ensureInitialized();
+        renderer_->scale(x, y);
+    }
+
+private:
+    static std::unique_ptr<Renderer> renderer_;
+    static std::unordered_map<std::string, std::shared_ptr<Texture>> textures_;
+    static bool initialized_;
+    
+    // 确保图形系统已初始化
+    static void ensureInitialized() {
+        if (initialized_) return;
+        
+        // 确保SDL已初始化
+        if (!SDLManager::instance().isInitialized()) {
+            throw std::runtime_error("SDL未初始化，无法使用图形功能");
         }
+        
+        renderer_ = std::make_unique<Renderer>();
+        initialized_ = true;
     }
-    
-    static void jsPopMatrix() {
-        if (renderer_) {
-            renderer_->popMatrix();
-        }
-    }
-    
-    static void jsTranslate(double x, double y) {
-        if (renderer_) {
-            renderer_->translate(x, y);
-        }
-    }
-    
-    static void jsRotate(double angle) {
-        if (renderer_) {
-            renderer_->rotate(angle);
-        }
-    }
-    
-    static void jsScale(double x, double y) {
-        if (renderer_) {
-            renderer_->scale(x, y);
-        }
-    }
-    
-    static std::vector<double> jsGetWindowSize() {
-        if (renderer_) {
-            Size size = renderer_->getWindowSize();
-            return {size.width, size.height};
-        }
-        return {0, 0};
-    }
-    
-    static void jsConsoleLog(const std::string& msg) {
-        std::cout << "[JS] " << msg << std::endl;
-    }
-    
-    friend void initGraphicsModule();
 };
 
 // 静态成员定义
 inline std::unique_ptr<Renderer> Graphics::renderer_ = nullptr;
 inline std::unordered_map<std::string, std::shared_ptr<Texture>> Graphics::textures_;
+inline bool Graphics::initialized_ = false;

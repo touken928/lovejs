@@ -1,40 +1,40 @@
 #pragma once
 #include "../../core/JSEngine.hpp"
-#include "Graphics.hpp"
+#include "JSBindings.hpp"
 
-// 图形模块初始化函数
+/**
+ * Graphics模块初始化
+ * 负责将图形功能注册到JavaScript引擎
+ */
 inline void initGraphicsModule() {
-    // 初始化渲染器
-    Graphics::getRenderer();
-    
     auto& engine = JSEngine::instance();
     auto& graphics = engine.global().module("graphics");
     
     // 窗口管理
-    graphics.func("setWindow", Graphics::jsSetWindow);
-    graphics.func("getWindowSize", Graphics::jsGetWindowSize);
+    graphics.func("setWindow", GraphicsJS::setWindow);
+    graphics.func("getWindowSize", GraphicsJS::getWindowSize);
     
     // 渲染控制
-    graphics.func("clear", Graphics::jsClear);
-    graphics.func("present", Graphics::jsPresent);
+    graphics.func("clear", GraphicsJS::clear);
+    graphics.func("present", GraphicsJS::present);
     
     // 颜色和绘制
-    graphics.func("setColor", Graphics::jsSetColor);
-    graphics.func("point", Graphics::jsDrawPoint);
-    graphics.func("line", Graphics::jsDrawLine);
-    graphics.func("rectangle", Graphics::jsDrawRectangle);
-    graphics.func("circle", Graphics::jsDrawCircle);
+    graphics.func("setColor", GraphicsJS::setColor);
+    graphics.func("point", GraphicsJS::point);
+    graphics.func("line", GraphicsJS::line);
+    graphics.func("rectangle", GraphicsJS::rectangle);
+    graphics.func("circle", GraphicsJS::circle);
     
     // 纹理
-    graphics.func("loadTexture", Graphics::jsLoadTexture);
-    graphics.func("drawTexture", Graphics::jsDrawTexture);
+    graphics.func("loadTexture", GraphicsJS::loadTexture);
+    graphics.func("drawTexture", GraphicsJS::drawTexture);
     
     // 变换
-    graphics.func("push", Graphics::jsPushMatrix);
-    graphics.func("pop", Graphics::jsPopMatrix);
-    graphics.func("translate", Graphics::jsTranslate);
-    graphics.func("rotate", Graphics::jsRotate);
-    graphics.func("scale", Graphics::jsScale);
+    graphics.func("push", GraphicsJS::push);
+    graphics.func("pop", GraphicsJS::pop);
+    graphics.func("translate", GraphicsJS::translate);
+    graphics.func("rotate", GraphicsJS::rotate);
+    graphics.func("scale", GraphicsJS::scale);
     
     // 预定义颜色常量
     graphics.value("WHITE", std::vector<double>{1.0, 1.0, 1.0, 1.0});
@@ -43,7 +43,6 @@ inline void initGraphicsModule() {
     graphics.value("GREEN", std::vector<double>{0.0, 1.0, 0.0, 1.0});
     graphics.value("BLUE", std::vector<double>{0.0, 0.0, 1.0, 1.0});
     graphics.value("YELLOW", std::vector<double>{1.0, 1.0, 0.0, 1.0});
-    
-    // 添加console.log支持
-    engine.global().func("console_log", Graphics::jsConsoleLog);
+    graphics.value("CYAN", std::vector<double>{0.0, 1.0, 1.0, 1.0});
+    graphics.value("MAGENTA", std::vector<double>{1.0, 0.0, 1.0, 1.0});
 }
