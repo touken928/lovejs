@@ -1,9 +1,9 @@
 add_rules("mode.debug", "mode.release")
 set_languages("c++17")
 
-add_requires("libsdl2")
-add_requires("libsdl2_image")
-add_requires("quickjs")
+add_requires("libsdl2", { configs = { shared = false } })
+add_requires("libsdl2_image", { configs = { shared = false } })
+add_requires("quickjs", { configs = { shared = false } })
 
 target("lovejs")
     set_kind("binary")
