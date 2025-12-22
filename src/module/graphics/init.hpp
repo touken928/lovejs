@@ -36,6 +36,9 @@ inline void initGraphicsModule() {
     graphics.func("rotate", GraphicsJS::rotate);
     graphics.func("scale", GraphicsJS::scale);
     
+    // 文本渲染
+    graphics.func("print", GraphicsJS::print);
+    
     // 预定义颜色常量
     graphics.value("WHITE", std::vector<double>{1.0, 1.0, 1.0, 1.0});
     graphics.value("BLACK", std::vector<double>{0.0, 0.0, 0.0, 1.0});

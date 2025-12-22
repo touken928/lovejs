@@ -82,4 +82,9 @@ namespace GraphicsJS {
         Graphics::scale(x, y);
     }
     
+    // 文本渲染
+    inline void print(const std::string& text, double x, double y) {
+        Graphics::print(text, x, y);
+    }
+    
 }

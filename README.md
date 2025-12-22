@@ -13,20 +13,20 @@ A lightweight 2D game engine for JavaScript, inspired by [LÖVE](https://love2d.
 
 ```javascript
 // main.js
-import { setWindow, clear, present, setColor, circle } from 'graphics';
+import * as graphics from 'graphics';
 
 export function load() {
-    setWindow("My Game", 800, 600);
+    graphics.setWindow("My Game", 800, 600);
 }
 
 export function update(dt) {
 }
 
 export function draw() {
-    clear(0.1, 0.1, 0.2, 1);
-    setColor(0, 1, 0, 1);
-    circle(400, 300, 50, true);
-    present();
+    graphics.clear(0.1, 0.1, 0.2, 1);
+    graphics.setColor(0, 1, 0, 1);
+    graphics.circle(400, 300, 50, true);
+    graphics.present();
 }
 
 export function keypressed(key) {}

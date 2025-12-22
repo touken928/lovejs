@@ -132,6 +132,12 @@ public:
         ensureInitialized();
         renderer_->scale(x, y);
     }
+    
+    // 文本渲染
+    static void print(const std::string& text, double x, double y) {
+        ensureInitialized();
+        renderer_->drawText(text, x, y);
+    }
 
 private:
     static std::unique_ptr<Renderer> renderer_;
