@@ -1,6 +1,11 @@
 # Build
 build/
 .xmake/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
 
 # OS
 .DS_Store

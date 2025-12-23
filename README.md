@@ -39,14 +39,19 @@ export function wheelmoved(x, y) {}
 ## Build
 
 ```bash
-xmake
+# 初始化子模块
+git submodule update --init --recursive
+
+# 配置并构建
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j8
 ```
 
 ## Run
 
 ```bash
-./build/macosx/arm64/release/lovejs           # runs main.js
-./build/macosx/arm64/release/lovejs game.js   # runs game.js
+./build/bin/lovejs           # runs main.js
+./build/bin/lovejs game.js   # runs game.js
 ```
 
 ## Callbacks
@@ -64,10 +69,14 @@ xmake
 
 ## Dependencies
 
+- CMake 3.16+
+- C++17 compiler
+- Git (for submodules)
+
+Third-party libraries (managed as git submodules):
 - SDL2
 - SDL2_image
 - QuickJS
-- xmake
 
 ## Documentation
 
