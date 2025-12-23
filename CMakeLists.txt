@@ -8,12 +8,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(BUILD_SHARED_LIBS OFF)
 
 # 静态链接 C++ 标准库和运行时
-if(MSVC)
-    # MSVC: 静态链接运行时库
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-elseif(NOT APPLE)
-    # GCC/Clang/MinGW (非 macOS): 静态链接 libgcc 和 libstdc++
+if(NOT APPLE)
+    # GCC/Clang/MinGW: 静态链接 libgcc 和 libstdc++
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")
+    if(WIN32)
+        # MinGW: 静态链接 pthread
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
+    endif()
 endif()
 
 # 输出目录
@@ -56,26 +57,22 @@ target_link_libraries(lovejs PRIVATE
 
 # 性能优化和二进制压缩
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    if(MSVC)
-        # MSVC 优化 - 移除默认的运行时检查
-        target_compile_options(lovejs PRIVATE /O2 /Ob2 /DNDEBUG)
-        target_link_options(lovejs PRIVATE /OPT:REF /OPT:ICF)
-        # 确保移除运行时检查
-        string(REGEX REPLACE "/RTC[^ ]*" "" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
-        string(REGEX REPLACE "/RTC[^ ]*" "" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
+    # GCC/Clang/MinGW 优化
+    target_compile_options(lovejs PRIVATE -O3 -DNDEBUG -ffunction-sections -fdata-sections)
+    if(APPLE)
+        target_link_options(lovejs PRIVATE -Wl,-dead_strip)
     else()
-        # GCC/Clang 优化
-        target_compile_options(lovejs PRIVATE -O3 -DNDEBUG -ffunction-sections -fdata-sections)
-        if(APPLE)
-            target_link_options(lovejs PRIVATE -Wl,-dead_strip)
-        else()
-            target_link_options(lovejs PRIVATE -Wl,--gc-sections -s)
-        endif()
+        target_link_options(lovejs PRIVATE -Wl,--gc-sections -s)
     endif()
 endif()
 
 # 平台特定设置
 if(WIN32)
+    # 检查编译器是否为 MSVC，如果是则报错
+    if(MSVC)
+        message(FATAL_ERROR "MSVC is not supported. Please use MinGW-w64 or Clang on Windows.")
+    endif()
+    
     target_compile_definitions(lovejs PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 

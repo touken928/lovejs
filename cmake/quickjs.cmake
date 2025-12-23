@@ -43,17 +43,15 @@ target_compile_definitions(quickjs PRIVATE CONFIG_VERSION="2024-01-13")
 # Release 模式优化
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     target_compile_definitions(quickjs PRIVATE NDEBUG)
-    if(MSVC)
-        target_compile_options(quickjs PRIVATE /O2 /Ob2)
-        # 确保移除运行时检查
-        string(REGEX REPLACE "/RTC[^ ]*" "" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
-        string(REGEX REPLACE "/RTC[^ ]*" "" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
-    else()
-        target_compile_options(quickjs PRIVATE -O3 -ffunction-sections -fdata-sections)
-    endif()
+    target_compile_options(quickjs PRIVATE -O3 -ffunction-sections -fdata-sections)
 endif()
 
 if(WIN32)
+    # 检查编译器是否为 MSVC，如果是则报错
+    if(MSVC)
+        message(FATAL_ERROR "MSVC is not supported. Please use MinGW-w64 or Clang on Windows.")
+    endif()
+    
     target_compile_definitions(quickjs PRIVATE _CRT_SECURE_NO_WARNINGS)
 elseif(UNIX)
     target_compile_definitions(quickjs PRIVATE _GNU_SOURCE)

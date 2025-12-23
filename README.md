@@ -54,8 +54,13 @@ export function wheelmoved(x, y) {}
 
 ### Prerequisites
 - CMake 3.16+
-- C++17 compatible compiler
+- C++17 compatible compiler (**Note: MSVC is not supported**)
 - Git (for submodules)
+
+### Supported Compilers
+- **Linux**: GCC 7+ or Clang 5+
+- **macOS**: Clang (Xcode Command Line Tools)
+- **Windows**: MinGW-w64 or Clang (MSVC is not supported)
 
 ### Build Steps
 
@@ -67,7 +72,7 @@ cd lovejs
 # Initialize submodules
 git submodule update --init --recursive
 
-# Configure and build
+# Configure and build (static linking by default)
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j8
 ```
