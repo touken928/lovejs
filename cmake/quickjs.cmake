@@ -34,26 +34,30 @@ endforeach()
 # 创建静态库
 add_library(quickjs STATIC ${QUICKJS_SOURCES})
 
-# quickjs 库本身使用原始路径编译
 target_include_directories(quickjs PRIVATE ${QUICKJS_DIR})
-
-# 对外暴露只包含头文件的目录
 target_include_directories(quickjs PUBLIC ${QUICKJS_INCLUDE_DIR})
 
 # 编译选项
-target_compile_definitions(quickjs PRIVATE
-    CONFIG_VERSION="2024-01-13"
-)
+target_compile_definitions(quickjs PRIVATE CONFIG_VERSION="2024-01-13")
+
+# Release 模式优化
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    target_compile_definitions(quickjs PRIVATE NDEBUG)
+    if(MSVC)
+        target_compile_options(quickjs PRIVATE /O2 /Ob2)
+    else()
+        target_compile_options(quickjs PRIVATE -O3 -ffunction-sections -fdata-sections)
+    endif()
+endif()
 
 if(WIN32)
-    target_compile_definitions(quickjs PRIVATE
-        _CRT_SECURE_NO_WARNINGS
-    )
+    target_compile_definitions(quickjs PRIVATE _CRT_SECURE_NO_WARNINGS)
 elseif(UNIX)
-    target_compile_definitions(quickjs PRIVATE
-        _GNU_SOURCE
-    )
-    target_link_libraries(quickjs PRIVATE m pthread dl)
+    target_compile_definitions(quickjs PRIVATE _GNU_SOURCE)
+    target_link_libraries(quickjs PRIVATE m dl)
+    if(NOT APPLE)
+        target_link_libraries(quickjs PRIVATE pthread)
+    endif()
 endif()
 
 # 禁用一些警告

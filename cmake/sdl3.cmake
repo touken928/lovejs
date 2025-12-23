@@ -1,22 +1,16 @@
 # SDL3 构建配置
-# 使用 git submodule 拉取到 third_party/SDL
-
 set(SDL3_DIR ${CMAKE_SOURCE_DIR}/third_party/SDL)
 
 if(NOT EXISTS ${SDL3_DIR}/CMakeLists.txt)
     message(FATAL_ERROR "SDL3 not found. Please run: git submodule update --init --recursive")
 endif()
 
-# SDL3 构建选项 - 静态链接
+# SDL3 静态链接配置
 set(SDL_SHARED OFF CACHE BOOL "" FORCE)
 set(SDL_STATIC ON CACHE BOOL "" FORCE)
 set(SDL_TEST OFF CACHE BOOL "" FORCE)
 
-# 禁用不需要的功能以减少编译时间
-set(SDL_AUDIO ON CACHE BOOL "" FORCE)
-set(SDL_VIDEO ON CACHE BOOL "" FORCE)
-set(SDL_RENDER ON CACHE BOOL "" FORCE)
-set(SDL_EVENTS ON CACHE BOOL "" FORCE)
+# 禁用不需要的功能
 set(SDL_JOYSTICK OFF CACHE BOOL "" FORCE)
 set(SDL_HAPTIC OFF CACHE BOOL "" FORCE)
 set(SDL_HIDAPI OFF CACHE BOOL "" FORCE)
