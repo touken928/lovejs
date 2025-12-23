@@ -57,9 +57,12 @@ target_link_libraries(lovejs PRIVATE
 # 性能优化和二进制压缩
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     if(MSVC)
-        # MSVC 优化
+        # MSVC 优化 - 移除默认的运行时检查
         target_compile_options(lovejs PRIVATE /O2 /Ob2 /DNDEBUG)
         target_link_options(lovejs PRIVATE /OPT:REF /OPT:ICF)
+        # 确保移除运行时检查
+        string(REGEX REPLACE "/RTC[^ ]*" "" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+        string(REGEX REPLACE "/RTC[^ ]*" "" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
     else()
         # GCC/Clang 优化
         target_compile_options(lovejs PRIVATE -O3 -DNDEBUG -ffunction-sections -fdata-sections)
