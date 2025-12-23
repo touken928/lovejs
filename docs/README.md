@@ -4,7 +4,7 @@ LoveJS 是一个基于 JavaScript 的 2D 游戏引擎，仿照 Love2D 设计，�
 
 ## 目录
 
-- [回调驱动](./回调驱动.md) - 游戏循环和回调函数
+- [Callbacks](./Callbacks.md) - 游戏循环和回调函数
 - [Graphics](./Graphics.md) - 图形渲染模块
 
 ## 快速开始
