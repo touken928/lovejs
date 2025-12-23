@@ -80,7 +80,7 @@ main.js (你的游戏代码)
 运行示例：
 
 ```bash
-xmake run lovejs examples/hello.js
-xmake run lovejs examples/particles.js
-xmake run lovejs examples/game/snap.js
+lovejs examples/hello.js
+lovejs examples/particles.js
+lovejs examples/game/snap.js
 ```
