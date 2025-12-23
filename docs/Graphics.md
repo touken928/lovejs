@@ -6,7 +6,7 @@ Graphics模块提供2D图形渲染功能，包括窗口管理、基本图形绘�
 
 ```javascript
 // 导入所需函数
-import { setWindow, clear, present, setColor, line, rectangle, circle } from 'graphics';
+import { setWindow, clear, present, setColor, line, rectangle, circle, print } from 'graphics';
 
 // 或导入全部
 import * as graphics from 'graphics';
@@ -57,19 +57,19 @@ clear(0.1, 0.1, 0.2, 1.0); // 深蓝色背景
 
 ### present()
 
-将渲染内容呈现到屏幕。每帧绑制完成后必须调用。
+将渲染内容呈现到屏幕。每帧绘制完成后必须调用。
 
 ```javascript
 export function draw() {
     clear(0, 0, 0, 1);
-    // 绑制内容...
+    // 绘制内容...
     present(); // 必须调用
 }
 ```
 
 ### setColor(r, g, b, a)
 
-设置后续绑制操作的颜色。
+设置后续绘制操作的颜色。
 
 | 参数 | 类型 | 说明 |
 |-----|------|------|
@@ -143,6 +143,23 @@ circle(400, 300, 50, true);  // 填充圆
 
 setColor(1, 1, 0, 1);
 circle(400, 300, 50, false); // 边框圆
+```
+
+## 文本渲染
+
+### print(text, x, y)
+
+绘制文本。
+
+| 参数 | 类型 | 说明 |
+|-----|------|------|
+| text | string | 要绘制的文本 |
+| x, y | number | 文本位置 |
+
+```javascript
+setColor(1, 1, 1, 1);
+print("Hello World!", 100, 100);
+print("Score: 1000", 100, 130);
 ```
 
 ## 变换
@@ -245,6 +262,8 @@ export function draw() {
 | GREEN | [0, 1, 0, 1] |
 | BLUE | [0, 0, 1, 1] |
 | YELLOW | [1, 1, 0, 1] |
+| CYAN | [0, 1, 1, 1] |
+| MAGENTA | [1, 0, 1, 1] |
 
 ```javascript
 import { setColor, WHITE, RED } from 'graphics';

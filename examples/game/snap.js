@@ -242,3 +242,7 @@ export function update(dt) {
 export function draw() {
     render();
 }
+
+export function mousepressed(x, y, button) {}
+export function mousereleased(x, y, button) {}
+export function wheelmoved(x, y) {}

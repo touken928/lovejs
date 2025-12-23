@@ -1,6 +1,6 @@
 # LoveJS 文档
 
-LoveJS是一个基于JavaScript的2D游戏引擎，仿照Love2D设计。
+LoveJS 是一个基于 JavaScript 的 2D 游戏引擎，仿照 Love2D 设计，使用 QuickJS 作为 JS 运行时，SDL2 作为图形后端。
 
 ## 目录
 
@@ -35,10 +35,17 @@ export function mousereleased(x, y, button) {}
 export function wheelmoved(x, y) {}
 ```
 
-### 2. 运行
+### 2. 构建与运行
 
 ```bash
-./build/macosx/arm64/release/lovejs
+# 构建
+xmake
+
+# 运行默认的 main.js
+xmake run
+
+# 运行指定的 JS 文件
+xmake run lovejs examples/basic_shapes.js
 ```
 
 ## 架构概览
@@ -64,4 +71,16 @@ main.js (你的游戏代码)
 
 ## 示例
 
-查看 `examples/` 目录获取更多示例代码。
+查看 `examples/` 目录获取更多示例代码：
+
+- `hello.js` - 最简单的入门示例
+- `particles.js` - 粒子效果，展示动态图形
+- `game/snap.js` - 贪吃蛇游戏
+
+运行示例：
+
+```bash
+xmake run lovejs examples/hello.js
+xmake run lovejs examples/particles.js
+xmake run lovejs examples/game/snap.js
+```
