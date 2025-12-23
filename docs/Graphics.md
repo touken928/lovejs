@@ -1,6 +1,6 @@
 # Graphics 模块
 
-Graphics模块提供2D图形渲染功能，包括窗口管理、基本图形绘制、颜色设置、变换和纹理支持。
+Graphics模块提供2D图形渲染功能，基于SDL3图形库，包括窗口管理、基本图形绘制、颜色设置、变换和纹理支持。
 
 ## 导入
 
@@ -216,17 +216,19 @@ pop();                       // 恢复状态
 
 ### loadTexture(path)
 
-加载纹理图片。
+加载纹理图片（仅支持BMP格式）。
 
 | 参数 | 类型 | 说明 |
 |-----|------|------|
-| path | string | 图片文件路径 |
+| path | string | BMP图片文件路径 |
 
 返回: 纹理ID（字符串），加载失败返回空字符串
 
 ```javascript
-let texture = loadTexture("player.png");
+let texture = loadTexture("player.bmp");
 ```
+
+**注意**: 当前版本仅支持BMP格式的图片文件。如需支持其他格式，请先转换为BMP格式。
 
 ### drawTexture(textureId, x, y, rotation, scaleX, scaleY)
 
@@ -241,7 +243,7 @@ let texture = loadTexture("player.png");
 | scaleY | number | Y缩放比例 |
 
 ```javascript
-let texture = loadTexture("player.png");
+let texture = loadTexture("player.bmp");
 
 export function draw() {
     clear(0, 0, 0, 1);

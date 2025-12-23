@@ -21,8 +21,7 @@ endif()
 
 # 第三方库
 include(cmake/quickjs.cmake)
-include(cmake/sdl2.cmake)
-include(cmake/sdl2_image.cmake)
+include(cmake/sdl3.cmake)
 
 # 源文件
 set(LOVEJS_SOURCES
@@ -35,15 +34,13 @@ add_executable(lovejs ${LOVEJS_SOURCES})
 target_include_directories(lovejs PRIVATE
     ${CMAKE_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_BINARY_DIR}/sdl2_compat_include  # SDL2/SDL.h 格式
+    ${CMAKE_BINARY_DIR}/sdl3_compat_include  # SDL3/SDL.h 格式
 )
 
 # 链接第三方库
 target_link_libraries(lovejs PRIVATE
     quickjs
-    SDL2::SDL2-static
-    SDL2::SDL2main
-    SDL2_image::SDL2_image-static
+    SDL3::SDL3-static
 )
 
 # Windows 特定设置

@@ -1,7 +1,7 @@
 #pragma once
 #include "JSEngine.hpp"
 #include <quickjs.h>
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 #include <chrono>
 #include <iostream>
 #include <string>
@@ -58,7 +58,7 @@ public:
             while (SDL_PollEvent(&event)) {
                 handleEvent(event);
                 
-                if (event.type == SDL_QUIT) {
+                if (event.type == SDL_EVENT_QUIT) {
                     running_ = false;
                 }
             }
@@ -85,27 +85,27 @@ private:
     
     static void handleEvent(const SDL_Event& event) {
         switch (event.type) {
-            case SDL_KEYDOWN:
+            case SDL_EVENT_KEY_DOWN:
                 if (!event.key.repeat) {
-                    callCallbackWithString("keypressed", getKeyName(event.key.keysym.sym));
+                    callCallbackWithString("keypressed", getKeyName(event.key.key));
                 }
                 break;
                 
-            case SDL_KEYUP:
-                callCallbackWithString("keyreleased", getKeyName(event.key.keysym.sym));
+            case SDL_EVENT_KEY_UP:
+                callCallbackWithString("keyreleased", getKeyName(event.key.key));
                 break;
                 
-            case SDL_MOUSEBUTTONDOWN:
+            case SDL_EVENT_MOUSE_BUTTON_DOWN:
                 callCallbackWithMouseButton("mousepressed", 
                     event.button.x, event.button.y, event.button.button);
                 break;
                 
-            case SDL_MOUSEBUTTONUP:
+            case SDL_EVENT_MOUSE_BUTTON_UP:
                 callCallbackWithMouseButton("mousereleased",
                     event.button.x, event.button.y, event.button.button);
                 break;
                 
-            case SDL_MOUSEWHEEL:
+            case SDL_EVENT_MOUSE_WHEEL:
                 callCallbackWithWheel("wheelmoved", event.wheel.x, event.wheel.y);
                 break;
         }

@@ -1,7 +1,6 @@
 #pragma once
 #include "IRenderer.hpp"
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_image.h>
+#include <SDL3/SDL.h>
 #include <stack>
 #include <unordered_map>
 #include <cmath>
@@ -14,22 +13,15 @@
 namespace render {
 
 /**
- * SDLRenderer - SDL2 渲染器实现
+ * SDLRenderer - SDL3 渲染器实现
  * 负责 SDL 初始化/销毁和所有渲染操作
  */
 class SDLRenderer : public IRenderer {
 public:
     SDLRenderer() {
         // 初始化 SDL
-        if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+        if (!SDL_Init(SDL_INIT_VIDEO)) {
             std::cerr << "SDL init failed: " << SDL_GetError() << std::endl;
-            return;
-        }
-        
-        int imgFlags = IMG_INIT_PNG | IMG_INIT_JPG;
-        if (!(IMG_Init(imgFlags) & imgFlags)) {
-            std::cerr << "SDL_image init failed: " << IMG_GetError() << std::endl;
-            SDL_Quit();
             return;
         }
         
@@ -39,7 +31,6 @@ public:
     ~SDLRenderer() override {
         destroyWindow();
         if (sdlInitialized_) {
-            IMG_Quit();
             SDL_Quit();
         }
     }
@@ -51,14 +42,13 @@ public:
         if (!sdlInitialized_) return false;
         if (window_) destroyWindow();
         
-        window_ = SDL_CreateWindow(title.c_str(), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                   width, height, SDL_WINDOW_SHOWN);
+        window_ = SDL_CreateWindow(title.c_str(), width, height, SDL_WINDOW_RESIZABLE);
         if (!window_) {
             std::cerr << "Failed to create window: " << SDL_GetError() << std::endl;
             return false;
         }
         
-        renderer_ = SDL_CreateRenderer(window_, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+        renderer_ = SDL_CreateRenderer(window_, nullptr);
         if (!renderer_) {
             std::cerr << "Failed to create renderer: " << SDL_GetError() << std::endl;
             SDL_DestroyWindow(window_);
@@ -66,6 +56,7 @@ public:
             return false;
         }
         
+        SDL_SetRenderVSync(renderer_, 1);  // 启用垂直同步
         SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_BLEND);
         return true;
     }
@@ -111,23 +102,21 @@ public:
     void drawPoint(float x, float y) override {
         if (!renderer_) return;
         applyColor();
-        SDL_RenderDrawPoint(renderer_, static_cast<int>(x), static_cast<int>(y));
+        SDL_RenderPoint(renderer_, x, y);
     }
     
     void drawLine(float x1, float y1, float x2, float y2) override {
         if (!renderer_) return;
         applyColor();
-        SDL_RenderDrawLine(renderer_, static_cast<int>(x1), static_cast<int>(y1),
-                          static_cast<int>(x2), static_cast<int>(y2));
+        SDL_RenderLine(renderer_, x1, y1, x2, y2);
     }
     
     void drawRect(const Rect& rect, bool filled) override {
         if (!renderer_) return;
         applyColor();
-        SDL_Rect r = {static_cast<int>(rect.x), static_cast<int>(rect.y),
-                      static_cast<int>(rect.width), static_cast<int>(rect.height)};
+        SDL_FRect r = {rect.x, rect.y, rect.width, rect.height};
         if (filled) SDL_RenderFillRect(renderer_, &r);
-        else SDL_RenderDrawRect(renderer_, &r);
+        else SDL_RenderRect(renderer_, &r);
     }
     
     void drawCircle(float x, float y, float radius, bool filled) override {
@@ -139,7 +128,7 @@ public:
         if (filled) {
             for (int dy = -r; dy <= r; dy++) {
                 int dx = static_cast<int>(std::sqrt(r * r - dy * dy));
-                SDL_RenderDrawLine(renderer_, cx - dx, cy + dy, cx + dx, cy + dy);
+                SDL_RenderLine(renderer_, cx - dx, cy + dy, cx + dx, cy + dy);
             }
         } else {
             int dx = 0, dy = r, d = 3 - 2 * r;
@@ -156,16 +145,16 @@ public:
     TextureHandle loadTexture(const std::string& path) override {
         if (!renderer_) return nullptr;
         
-        SDL_Surface* surface = IMG_Load(path.c_str());
-        if (!surface) surface = SDL_LoadBMP(path.c_str());
+        // 只支持 BMP 格式（SDL3 内置支持）
+        SDL_Surface* surface = SDL_LoadBMP(path.c_str());
         if (!surface) {
-            std::cerr << "Failed to load image: " << path << std::endl;
+            std::cerr << "Failed to load BMP image: " << path << " - " << SDL_GetError() << std::endl;
             return nullptr;
         }
         
         SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer_, surface);
         int w = surface->w, h = surface->h;
-        SDL_FreeSurface(surface);
+        SDL_DestroySurface(surface);
         
         if (!tex) return nullptr;
         
@@ -194,11 +183,10 @@ public:
         if (it == textures_.end()) return;
         
         auto& tex = it->second;
-        SDL_Rect dst = {static_cast<int>(x), static_cast<int>(y),
-                       static_cast<int>(tex.width * scaleX), static_cast<int>(tex.height * scaleY)};
-        SDL_Point center = {dst.w / 2, dst.h / 2};
-        SDL_RenderCopyEx(renderer_, tex.sdlTexture, nullptr, &dst,
-                        rotation * 180.0 / M_PI, &center, SDL_FLIP_NONE);
+        SDL_FRect dst = {x, y, tex.width * scaleX, tex.height * scaleY};
+        SDL_FPoint center = {dst.w / 2, dst.h / 2};
+        SDL_RenderTextureRotated(renderer_, tex.sdlTexture, nullptr, &dst,
+                               rotation * 180.0 / M_PI, &center, SDL_FLIP_NONE);
     }
     
     // 变换
@@ -235,14 +223,14 @@ private:
     }
     
     void drawCirclePoints(int cx, int cy, int x, int y) {
-        SDL_RenderDrawPoint(renderer_, cx + x, cy + y);
-        SDL_RenderDrawPoint(renderer_, cx - x, cy + y);
-        SDL_RenderDrawPoint(renderer_, cx + x, cy - y);
-        SDL_RenderDrawPoint(renderer_, cx - x, cy - y);
-        SDL_RenderDrawPoint(renderer_, cx + y, cy + x);
-        SDL_RenderDrawPoint(renderer_, cx - y, cy + x);
-        SDL_RenderDrawPoint(renderer_, cx + y, cy - x);
-        SDL_RenderDrawPoint(renderer_, cx - y, cy - x);
+        SDL_RenderPoint(renderer_, cx + x, cy + y);
+        SDL_RenderPoint(renderer_, cx - x, cy + y);
+        SDL_RenderPoint(renderer_, cx + x, cy - y);
+        SDL_RenderPoint(renderer_, cx - x, cy - y);
+        SDL_RenderPoint(renderer_, cx + y, cy + x);
+        SDL_RenderPoint(renderer_, cx - y, cy + x);
+        SDL_RenderPoint(renderer_, cx + y, cy - x);
+        SDL_RenderPoint(renderer_, cx - y, cy - x);
     }
 };
 

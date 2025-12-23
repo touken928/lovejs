@@ -1,6 +1,6 @@
 # LoveJS 文档
 
-LoveJS 是一个基于 JavaScript 的 2D 游戏引擎，仿照 Love2D 设计，使用 QuickJS 作为 JS 运行时，SDL2 作为图形后端。
+LoveJS 是一个基于 JavaScript 的 2D 游戏引擎，仿照 Love2D 设计，使用 QuickJS 作为 JS 运行时，SDL3 作为图形后端。
 
 ## 目录
 
@@ -39,13 +39,14 @@ export function wheelmoved(x, y) {}
 
 ```bash
 # 构建
-xmake
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j8
 
 # 运行默认的 main.js
-xmake run
+./build/bin/lovejs
 
 # 运行指定的 JS 文件
-xmake run lovejs examples/basic_shapes.js
+./build/bin/lovejs examples/hello.js
 ```
 
 ## 架构概览
@@ -73,14 +74,24 @@ main.js (你的游戏代码)
 
 查看 `examples/` 目录获取更多示例代码：
 
-- `hello.js` - 最简单的入门示例
-- `particles.js` - 粒子效果，展示动态图形
-- `game/snap.js` - 贪吃蛇游戏
+- `examples/hello.js` - 最简单的入门示例
+- `examples/particles.js` - 粒子效果，展示动态图形
+- `examples/game/tetris.js` - 俄罗斯方块游戏
+- `examples/game/gomoku.js` - 五子棋游戏
 
 运行示例：
 
 ```bash
-lovejs examples/hello.js
-lovejs examples/particles.js
-lovejs examples/game/snap.js
+./build/bin/lovejs examples/hello.js
+./build/bin/lovejs examples/particles.js
+./build/bin/lovejs examples/game/tetris.js
+./build/bin/lovejs examples/game/gomoku.js
 ```
+
+## 技术特性
+
+- **现代图形 API**: 基于 SDL3，支持硬件加速渲染
+- **轻量级引擎**: 使用 QuickJS，启动快速，内存占用小
+- **ES6 模块**: 支持现代 JavaScript 模块系统
+- **跨平台**: 支持 Windows、macOS、Linux
+- **简单易用**: Love2D 风格的 API，学习成本低
