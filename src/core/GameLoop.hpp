@@ -27,7 +27,7 @@ public:
         )";
         
         if (!engine.runFile("_loader.js", code)) {
-            std::cerr << "无法加载模块: " << jsFile << std::endl;
+            std::cerr << "Failed to load module: " << jsFile << std::endl;
             return false;
         }
         
@@ -37,7 +37,7 @@ public:
     // 运行游戏循环
     static void run() {
         if (!engine_ || !ctx_) {
-            std::cerr << "引擎未初始化" << std::endl;
+            std::cerr << "Engine not initialized" << std::endl;
             return;
         }
         
@@ -132,7 +132,7 @@ private:
                 JSValue ex = JS_GetException(ctx_);
                 const char* str = JS_ToCString(ctx_, ex);
                 if (str) {
-                    std::cerr << "回调错误 [" << name << "]: " << str << std::endl;
+                    std::cerr << "Callback error [" << name << "]: " << str << std::endl;
                     JS_FreeCString(ctx_, str);
                 }
                 JS_FreeValue(ctx_, ex);

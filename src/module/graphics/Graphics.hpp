@@ -15,7 +15,7 @@ public:
         if (!renderer_) {
             renderer_ = std::make_unique<render::SDLRenderer>();
             if (!renderer_->isInitialized())
-                throw std::runtime_error("渲染器初始化失败");
+                throw std::runtime_error("Renderer init failed");
         }
         return *renderer_;
     }

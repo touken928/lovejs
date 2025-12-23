@@ -22,13 +22,13 @@ public:
     SDLRenderer() {
         // 初始化 SDL
         if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-            std::cerr << "SDL初始化失败: " << SDL_GetError() << std::endl;
+            std::cerr << "SDL init failed: " << SDL_GetError() << std::endl;
             return;
         }
         
         int imgFlags = IMG_INIT_PNG | IMG_INIT_JPG;
         if (!(IMG_Init(imgFlags) & imgFlags)) {
-            std::cerr << "SDL_image初始化失败: " << IMG_GetError() << std::endl;
+            std::cerr << "SDL_image init failed: " << IMG_GetError() << std::endl;
             SDL_Quit();
             return;
         }
@@ -54,13 +54,13 @@ public:
         window_ = SDL_CreateWindow(title.c_str(), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                                    width, height, SDL_WINDOW_SHOWN);
         if (!window_) {
-            std::cerr << "创建窗口失败: " << SDL_GetError() << std::endl;
+            std::cerr << "Failed to create window: " << SDL_GetError() << std::endl;
             return false;
         }
         
         renderer_ = SDL_CreateRenderer(window_, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
         if (!renderer_) {
-            std::cerr << "创建渲染器失败: " << SDL_GetError() << std::endl;
+            std::cerr << "Failed to create renderer: " << SDL_GetError() << std::endl;
             SDL_DestroyWindow(window_);
             window_ = nullptr;
             return false;
@@ -159,7 +159,7 @@ public:
         SDL_Surface* surface = IMG_Load(path.c_str());
         if (!surface) surface = SDL_LoadBMP(path.c_str());
         if (!surface) {
-            std::cerr << "无法加载图像: " << path << std::endl;
+            std::cerr << "Failed to load image: " << path << std::endl;
             return nullptr;
         }
         
