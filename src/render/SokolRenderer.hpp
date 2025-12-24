@@ -197,7 +197,38 @@ public:
     void setupPipeline() {
         sg_shader_desc shd_desc = {};
         
-        // Metal 着色器
+        #if defined(_WIN32)
+        // HLSL shader for D3D11
+        shd_desc.vertex_func.source = 
+            "cbuffer uniforms : register(b0) {\n"
+            "    float2 resolution;\n"
+            "};\n"
+            "struct vs_in {\n"
+            "    float2 position: POSITION;\n"
+            "    float4 color: COLOR0;\n"
+            "};\n"
+            "struct vs_out {\n"
+            "    float4 color: COLOR0;\n"
+            "    float4 position: SV_Position;\n"
+            "};\n"
+            "vs_out main(vs_in inp) {\n"
+            "    vs_out outp;\n"
+            "    float2 pos = inp.position / resolution * 2.0 - 1.0;\n"
+            "    pos.y = -pos.y;\n"
+            "    outp.position = float4(pos, 0.0, 1.0);\n"
+            "    outp.color = inp.color;\n"
+            "    return outp;\n"
+            "}\n";
+        shd_desc.vertex_func.entry = "main";
+        
+        shd_desc.fragment_func.source = 
+            "float4 main(float4 color: COLOR0): SV_Target0 {\n"
+            "    return color;\n"
+            "}\n";
+        shd_desc.fragment_func.entry = "main";
+        
+        #elif defined(__APPLE__)
+        // Metal shader for macOS/iOS
         shd_desc.vertex_func.source = 
             "#include <metal_stdlib>\n"
             "using namespace metal;\n"
@@ -232,6 +263,32 @@ public:
             "    return in.color;\n"
             "}\n";
         shd_desc.fragment_func.entry = "_main";
+        
+        #else
+        // GLSL shader for OpenGL
+        shd_desc.vertex_func.source = 
+            "#version 330\n"
+            "uniform vec2 resolution;\n"
+            "layout(location=0) in vec2 position;\n"
+            "layout(location=1) in vec4 color0;\n"
+            "out vec4 color;\n"
+            "void main() {\n"
+            "    vec2 pos = position / resolution * 2.0 - 1.0;\n"
+            "    pos.y = -pos.y;\n"
+            "    gl_Position = vec4(pos, 0.0, 1.0);\n"
+            "    color = color0;\n"
+            "}\n";
+        shd_desc.vertex_func.entry = "main";
+        
+        shd_desc.fragment_func.source = 
+            "#version 330\n"
+            "in vec4 color;\n"
+            "out vec4 frag_color;\n"
+            "void main() {\n"
+            "    frag_color = color;\n"
+            "}\n";
+        shd_desc.fragment_func.entry = "main";
+        #endif
         
         // 声明uniform block
         shd_desc.uniform_blocks[0].stage = SG_SHADERSTAGE_VERTEX;
