@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.16)
-project(lovejs LANGUAGES C CXX OBJC)
+
+# 根据平台设置语言
+if(APPLE)
+    project(lovejs LANGUAGES C CXX OBJC)
+else()
+    project(lovejs LANGUAGES C CXX)
+endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
