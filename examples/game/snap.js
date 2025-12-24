@@ -173,8 +173,8 @@ function render() {
 
     // 绘制分数
     setColor(1, 1, 1, 1);
-    print(`SCORE: ${score}`, 20, 30);
-    print(`LENGTH: ${snake.length}`, 20, 55);
+    print(`SCORE: ${score}`, 10, 10);
+    print(`LENGTH: ${snake.length}`, 10, 35);
 
     // 游戏结束画面
     if (gameOver) {
@@ -184,17 +184,17 @@ function render() {
 
         // 游戏结束文字
         setColor(1, 0.3, 0.3, 1);
-        print("GAME OVER!", CANVAS_WIDTH / 2 - 80, CANVAS_HEIGHT / 2 - 40);
+        print("GAME OVER!", CANVAS_WIDTH / 2 - 65, CANVAS_HEIGHT / 2 - 40);
 
         setColor(1, 1, 1, 1);
-        print(`FINAL SCORE: ${score}`, CANVAS_WIDTH / 2 - 100, CANVAS_HEIGHT / 2 + 10);
-        print("PRESS R TO RESTART", CANVAS_WIDTH / 2 - 120, CANVAS_HEIGHT / 2 + 50);
+        print(`SCORE: ${score}`, CANVAS_WIDTH / 2 - 60, CANVAS_HEIGHT / 2 + 10);
+        print("PRESS R", CANVAS_WIDTH / 2 - 45, CANVAS_HEIGHT / 2 + 50);
     }
 
     // 控制说明
     if (!gameOver && score === 0) {
         setColor(0.8, 0.8, 0.8, 1);
-        print("USE WASD OR ARROW KEYS", CANVAS_WIDTH - 250, CANVAS_HEIGHT - 50);
+        print("WASD or ARROWS", CANVAS_WIDTH - 150, CANVAS_HEIGHT - 30);
     }
 
     present();

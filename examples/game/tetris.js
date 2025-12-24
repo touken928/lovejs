@@ -334,7 +334,7 @@ function render() {
     
     // 下一个方块预览
     setColor(1, 1, 1, 1);
-    print("NEXT", infoX, 50);
+    print("NEXT", infoX + 30, 50);
     
     setColor(0.2, 0.2, 0.3, 1);
     rectangle(infoX, 70, 120, 80, true);
@@ -359,19 +359,19 @@ function render() {
     
     // 分数信息
     setColor(1, 1, 1, 1);
-    print("SCORE", infoX, 180);
+    print("SCORE", infoX + 20, 180);
     setColor(0, 1, 1, 1);
-    print(`${score}`, infoX, 205);
+    print(`${score}`, infoX + 30, 205);
     
     setColor(1, 1, 1, 1);
-    print("LEVEL", infoX, 250);
+    print("LEVEL", infoX + 20, 250);
     setColor(0, 1, 0, 1);
-    print(`${level}`, infoX, 275);
+    print(`${level}`, infoX + 35, 275);
     
     setColor(1, 1, 1, 1);
-    print("LINES", infoX, 320);
+    print("LINES", infoX + 20, 320);
     setColor(1, 1, 0, 1);
-    print(`${lines}`, infoX, 345);
+    print(`${lines}`, infoX + 35, 345);
     
     // 控制说明
     setColor(0.6, 0.6, 0.6, 1);
@@ -379,7 +379,7 @@ function render() {
     print("A/D - Move", infoX, 445);
     print("W - Rotate", infoX, 470);
     print("S - Soft Drop", infoX, 495);
-    print("SPACE - Hard Drop", infoX, 520);
+    print("SPACE - Hard", infoX, 520);
     print("P - Pause", infoX, 545);
     
     // 游戏结束
@@ -388,11 +388,11 @@ function render() {
         rectangle(BOARD_X, BOARD_Y, BOARD_WIDTH * BLOCK_SIZE, BOARD_HEIGHT * BLOCK_SIZE, true);
         
         setColor(1, 0.3, 0.3, 1);
-        print("GAME OVER!", BOARD_X + 60, BOARD_Y + 250);
+        print("GAME OVER!", BOARD_X + 50, BOARD_Y + 250);
         
         setColor(1, 1, 1, 1);
-        print(`SCORE: ${score}`, BOARD_X + 80, BOARD_Y + 290);
-        print("PRESS R TO RESTART", BOARD_X + 40, BOARD_Y + 330);
+        print(`SCORE: ${score}`, BOARD_X + 60, BOARD_Y + 290);
+        print("PRESS R", BOARD_X + 70, BOARD_Y + 330);
     }
     
     // 暂停
@@ -401,7 +401,7 @@ function render() {
         rectangle(BOARD_X, BOARD_Y, BOARD_WIDTH * BLOCK_SIZE, BOARD_HEIGHT * BLOCK_SIZE, true);
         
         setColor(1, 1, 0, 1);
-        print("PAUSED", BOARD_X + 100, BOARD_Y + 280);
+        print("PAUSED", BOARD_X + 85, BOARD_Y + 280);
     }
     
     present();

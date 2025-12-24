@@ -55,7 +55,7 @@ export function draw() {
     }
     
     setColor(1, 1, 1, 0.8);
-    print(`Particles: ${particles.length}`, 10, 20);
+    print(`Particles: ${particles.length}`, 10, 10);
     
     present();
 }

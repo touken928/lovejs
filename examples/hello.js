@@ -10,8 +10,9 @@ export function update(dt) {}
 export function draw() {
     clear(0.2, 0.2, 0.3, 1);
     
+    // 文字居中显示 (14个字符 * 7像素 + 13个间距 = 111像素宽)
     setColor(1, 1, 1, 1);
-    print("Hello, LoveJS!", 360, 280);
+    print("Hello, LoveJS!", 345, 280);
     
     setColor(0, 0.8, 0.4, 1);
     circle(400, 350, 30, true);

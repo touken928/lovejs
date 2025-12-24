@@ -39,7 +39,7 @@ public:
             if (auto* bmp = Font::getBitmap(c)) {
                 for (int row = 0; row < Font::CHAR_HEIGHT; row++) {
                     for (int col = 0; col < Font::CHAR_WIDTH; col++) {
-                        if (bmp[row] & (1 << (Font::CHAR_WIDTH - 1 - col)))
+                        if (bmp[row] & (1 << col))
                             renderer().drawPoint(x + col, y + row);
                     }
                 }

@@ -73,7 +73,7 @@ public:
     
     // 基本图形
     void drawPoint(float x, float y) override {
-        drawRect({x, y, 2, 2}, true);
+        drawRect({x, y, 1, 1}, true);
     }
     
     void drawLine(float x1, float y1, float x2, float y2) override {

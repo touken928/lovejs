@@ -213,7 +213,7 @@ function drawInfo() {
     
     // 标题
     setColor(1, 1, 1, 1);
-    print("GOMOKU", infoX, 50);
+    print("GOMOKU", infoX + 15, 50);
     
     // 当前玩家
     setColor(0.8, 0.8, 0.8, 1);
@@ -224,28 +224,28 @@ function drawInfo() {
             setColor(0.1, 0.1, 0.1, 1);
             circle(infoX + 80, 145, 15, true);
             setColor(1, 1, 1, 1);
-            print("BLACK", infoX + 50, 170);
+            print("BLACK", infoX + 30, 170);
         } else {
             setColor(0.95, 0.95, 0.95, 1);
             circle(infoX + 80, 145, 15, true);
             setColor(0.7, 0.7, 0.7, 1);
             circle(infoX + 80, 145, 15, false);
             setColor(1, 1, 1, 1);
-            print("WHITE", infoX + 50, 170);
+            print("WHITE", infoX + 30, 170);
         }
     }
     
     // 落子数
     setColor(0.8, 0.8, 0.8, 1);
-    print("Moves:", infoX, 220);
+    print("Moves:", infoX + 5, 220);
     setColor(0, 1, 1, 1);
     print(`${moveHistory.length}`, infoX + 80, 220);
     
     // 控制说明
     setColor(0.6, 0.6, 0.6, 1);
     print("CONTROLS:", infoX, 300);
-    print("Click - Place", infoX, 330);
-    print("U - Undo", infoX, 355);
+    print("Click-Place", infoX, 330);
+    print("U - Undo", infoX + 5, 355);
     print("R - Restart", infoX, 380);
     
     // 胜利信息
@@ -255,14 +255,14 @@ function drawInfo() {
         
         if (winner === 1) {
             setColor(1, 0.8, 0, 1);
-            print("BLACK WINS!", WINDOW_WIDTH / 2 - 80, WINDOW_HEIGHT / 2 - 20);
+            print("BLACK WINS!", WINDOW_WIDTH / 2 - 70, WINDOW_HEIGHT / 2 - 20);
         } else {
             setColor(1, 0.8, 0, 1);
-            print("WHITE WINS!", WINDOW_WIDTH / 2 - 80, WINDOW_HEIGHT / 2 - 20);
+            print("WHITE WINS!", WINDOW_WIDTH / 2 - 70, WINDOW_HEIGHT / 2 - 20);
         }
         
         setColor(1, 1, 1, 1);
-        print("Press R to restart", WINDOW_WIDTH / 2 - 100, WINDOW_HEIGHT / 2 + 20);
+        print("Press R", WINDOW_WIDTH / 2 - 40, WINDOW_HEIGHT / 2 + 20);
     }
 }
 
