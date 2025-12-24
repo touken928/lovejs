@@ -78,6 +78,30 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j8
 ```
 
+### Troubleshooting
+
+**If you get "No url found for submodule path 'third_party/SDL'" error:**
+
+This happens if you're upgrading from an older version that used SDL. Run the cleanup script:
+
+**Windows:**
+```bash
+cleanup_submodules.bat
+```
+
+**macOS/Linux:**
+```bash
+./cleanup_submodules.sh
+```
+
+Or manually clean up:
+```bash
+git rm --cached third_party/SDL
+rm -rf third_party/SDL
+rm -rf .git/modules/third_party/SDL
+git submodule update --init --recursive
+```
+
 ## Run
 
 ```bash
