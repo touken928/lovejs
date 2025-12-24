@@ -1,30 +1,39 @@
-#include <iostream>
-#include <fstream>
-#include <string>
-#include "core/JSEngine.hpp"
+#include <sokol_app.h>
+#include <sokol_gfx.h>
+#include <sokol_glue.h>
+#include <sokol_log.h>
 #include "core/GameLoop.hpp"
-#include "module/init.hpp"
 
-int main(int argc, char* argv[]) {
-    std::string jsFile = (argc > 1) ? argv[1] : "main.js";
+void init_cb() {
+    sg_desc desc = {};
+    desc.environment = sglue_environment();
+    desc.logger.func = slog_func;
+    sg_setup(&desc);
     
-    // 注册所有模块到 JS 引擎（SDL 在首次调用 graphics 时懒加载）
-    initAllModules();
+    GameLoop::init();
+}
+
+void frame_cb() {
+    GameLoop::frame();
+}
+
+void cleanup_cb() {
+    GameLoop::cleanup();
+    sg_shutdown();
+}
+
+void event_cb(const sapp_event* event) {
+    GameLoop::handleEvent(event);
+}
+
+sapp_desc sokol_main(int argc, char* argv[]) {
+    const char* jsFile = (argc > 1) ? argv[1] : "main.js";
     
-    // 检查 JS 文件
-    std::ifstream file(jsFile);
-    if (!file.good()) {
-        std::cerr << "Error: file not found: " << jsFile << std::endl;
-        return -1;
-    }
-    file.close();
+    sapp_desc desc = GameLoop::setup(jsFile);
+    desc.init_cb = init_cb;
+    desc.frame_cb = frame_cb;
+    desc.cleanup_cb = cleanup_cb;
+    desc.event_cb = event_cb;
     
-    // 加载并运行
-    if (!GameLoop::loadMainModule(JSEngine::instance(), jsFile)) {
-        std::cerr << "Error: failed to load " << jsFile << std::endl;
-        return -1;
-    }
-    
-    GameLoop::run();
-    return 0;
+    return desc;
 }

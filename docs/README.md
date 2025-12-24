@@ -1,6 +1,6 @@
 # LoveJS 文档
 
-LoveJS 是一个基于 JavaScript 的 2D 游戏引擎，仿照 Love2D 设计，使用 QuickJS 作为 JS 运行时，SDL3 作为图形后端。
+LoveJS 是一个基于 JavaScript 的 2D 游戏引擎，仿照 Love2D 设计，使用 QuickJS 作为 JS 运行时，Sokol 作为图形后端。
 
 ## 目录
 
@@ -90,7 +90,7 @@ main.js (你的游戏代码)
 
 ## 技术特性
 
-- **现代图形 API**: 基于 SDL3，支持硬件加速渲染
+- **现代图形 API**: 基于 Sokol，支持 Metal/D3D11/OpenGL 硬件加速渲染
 - **轻量级引擎**: 使用 QuickJS，启动快速，内存占用小
 - **ES6 模块**: 支持现代 JavaScript 模块系统
 - **跨平台**: 支持 Windows、macOS、Linux

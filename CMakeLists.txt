@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(lovejs LANGUAGES C CXX)
+project(lovejs LANGUAGES C CXX OBJC)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -33,7 +33,7 @@ endif()
 
 # 第三方库
 include(cmake/quickjs.cmake)
-include(cmake/sdl3.cmake)
+include(cmake/sokol.cmake)
 
 # 源文件
 set(LOVEJS_SOURCES
@@ -46,13 +46,12 @@ add_executable(lovejs ${LOVEJS_SOURCES})
 target_include_directories(lovejs PRIVATE
     ${CMAKE_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_BINARY_DIR}/sdl3_compat_include
 )
 
 # 链接第三方库
 target_link_libraries(lovejs PRIVATE
     quickjs
-    SDL3::SDL3-static
+    sokol
 )
 
 # 性能优化和二进制压缩
@@ -81,8 +80,6 @@ if(APPLE)
         "-framework Cocoa"
         "-framework IOKit"
         "-framework CoreVideo"
-        "-framework CoreAudio"
-        "-framework AudioToolbox"
         "-framework Metal"
         "-framework QuartzCore"
     )

@@ -6,18 +6,22 @@
 
 /**
  * Graphics - 图形模块核心
+ * 使用 Sokol 渲染器
  */
 class Graphics {
 public:
     static Graphics& instance() { static Graphics g; return g; }
     
+    // 设置外部渲染器
+    static void setRenderer(render::IRenderer* renderer) {
+        instance().externalRenderer_ = renderer;
+    }
+    
     render::IRenderer& renderer() {
-        if (!renderer_) {
-            renderer_ = std::make_unique<render::SDLRenderer>();
-            if (!renderer_->isInitialized())
-                throw std::runtime_error("Renderer init failed");
+        if (!externalRenderer_) {
+            throw std::runtime_error("No renderer set. Call Graphics::setRenderer() first.");
         }
-        return *renderer_;
+        return *externalRenderer_;
     }
     
     // 纹理缓存
@@ -45,6 +49,7 @@ public:
     }
 
 private:
-    std::unique_ptr<render::SDLRenderer> renderer_;
+    render::IRenderer* externalRenderer_ = nullptr;
     std::unordered_map<std::string, render::TextureHandle> textures_;
 };
+

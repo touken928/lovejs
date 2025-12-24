@@ -6,12 +6,13 @@ A lightweight 2D game engine for JavaScript, inspired by [LÖVE](https://love2d.
 
 - Love2D-style callback API
 - ES6 module support
-- SDL3-based rendering with modern graphics pipeline
+- Sokol-based rendering with modern graphics pipeline (Metal/D3D11/OpenGL)
 - Keyboard, mouse, and wheel input
 - Built-in text rendering
 - Geometric shapes and basic graphics primitives
-- Texture loading (BMP format)
+- Texture loading support
 - Matrix transformations (translate, rotate, scale)
+- Cross-platform (macOS, Windows, Linux)
 
 ## Quick Start
 
@@ -89,7 +90,24 @@ cmake --build build -j8
 # Run example games
 ./build/bin/lovejs examples/game/tetris.js
 ./build/bin/lovejs examples/game/gomoku.js
+./build/bin/lovejs examples/game/snap.js
 ```
+
+## Rendering Backend
+
+LoveJS uses **Sokol** as its rendering backend:
+
+- **macOS**: Metal (native, high performance)
+- **Windows**: Direct3D 11
+- **Linux**: OpenGL 3.3 Core
+
+Sokol provides:
+- Lightweight, modern graphics API
+- Excellent cross-platform support
+- Batch rendering for better performance
+- Minimal dependencies
+
+See [SOKOL_SUMMARY.md](./SOKOL_SUMMARY.md) for technical details.
 
 ## Examples
 
@@ -99,15 +117,12 @@ The `examples/` directory contains several demo programs:
 - `examples/particles.js` - Particle system demonstration
 - `examples/game/tetris.js` - Full Tetris implementation
 - `examples/game/gomoku.js` - Five-in-a-row game (Gomoku)
+- `examples/game/snap.js` - Snake game
 
 ## Dependencies
 
-- CMake 3.16+
-- C++17 compiler
-- Git (for submodules)
-
 Third-party libraries (managed as git submodules):
-- **SDL3** - Modern cross-platform graphics and input
+- **Sokol** - Modern cross-platform graphics library
 - **QuickJS** - Lightweight JavaScript engine
 
 ## Documentation
