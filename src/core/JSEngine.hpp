@@ -249,7 +249,16 @@ inline JSClassID g_funcClassId = 0;
 
 class JSEngine {
 public:
-    JSEngine() : global_("global", nullptr, this) {
+    JSEngine() = delete;  // 禁止实例化
+    JSEngine(const JSEngine&) = delete;
+    JSEngine& operator=(const JSEngine&) = delete;
+    
+    /**
+     * 初始化 JS 引擎
+     */
+    static void initialize() {
+        if (rt_) return;  // 已经初始化
+        
         rt_ = JS_NewRuntime();
         ctx_ = JS_NewContext(rt_);
         
@@ -262,33 +271,95 @@ public:
         classDef.finalizer = nullptr;  // C++ 侧管理生命周期，JS 不释放
         JS_NewClass(rt_, g_funcClassId, &classDef);
         
-        // 设置 runtime opaque 为 this，用于模块初始化回调
-        JS_SetRuntimeOpaque(rt_, this);
+        // 设置 runtime opaque 为 nullptr（静态方案不需要 this）
+        JS_SetRuntimeOpaque(rt_, nullptr);
         
-        // 设置模块加载器，传递 this 指针
-        JS_SetModuleLoaderFunc(rt_, nullptr, &JSEngine::loadModule, this);
+        // 设置模块加载器
+        JS_SetModuleLoaderFunc(rt_, nullptr, &JSEngine::loadModule, nullptr);
     }
     
-    ~JSEngine() {
-        JS_FreeContext(ctx_);
-        JS_FreeRuntime(rt_);
+    /**
+     * 获取全局模块
+     */
+    static JSModule& global() { 
+        if (!global_) {
+            global_ = std::make_unique<JSModule>("global", nullptr, nullptr);
+        }
+        return *global_; 
     }
     
-    // 禁止拷贝
-    JSEngine(const JSEngine&) = delete;
-    JSEngine& operator=(const JSEngine&) = delete;
-    
-    /// 获取单例（兼容旧 API）
-    static JSEngine& instance() {
-        static JSEngine inst;
-        return inst;
+    /**
+     * 显式清理资源（在程序退出前调用）
+     */
+    static void cleanup() {
+        if (!ctx_ && !rt_) return; // 已经清理过了
+        
+        // 清理模块映射
+        modData_.clear();
+        
+        // 运行垃圾回收
+        if (ctx_ && rt_) {
+            JS_RunGC(rt_);
+        }
+        
+        // 释放上下文和运行时
+        if (ctx_) {
+            JS_FreeContext(ctx_);
+            ctx_ = nullptr;
+        }
+        if (rt_) {
+            JS_FreeRuntime(rt_);
+            rt_ = nullptr;
+        }
+        
+        // 清理全局模块
+        global_.reset();
     }
     
-    JSModule& global() { return global_; }
+    /**
+     * 调用全局 JS 函数（支持任意类型参数）
+     * 使用示例：
+     *   callGlobal("update", 0.016);
+     *   callGlobal("keypressed", "space");
+     *   callGlobal("mousepressed", 100, 200, 1);
+     */
+    template<typename... Args>
+    static bool callGlobal(const char* name, Args... args) {
+        if (!ctx_) return false;
+        
+        JSValue global = JS_GetGlobalObject(ctx_);
+        JSValue func = JS_GetPropertyStr(ctx_, global, name);
+        
+        bool success = false;
+        if (JS_IsFunction(ctx_, func)) {
+            // 转换参数为 JSValue 数组
+            constexpr size_t argc = sizeof...(Args);
+            JSValue argv[argc > 0 ? argc : 1];
+            if constexpr (argc > 0) {
+                convertArgs(argv, args...);
+            }
+            
+            // 调用函数
+            JSValue result = JS_Call(ctx_, func, global, argc, argc > 0 ? argv : nullptr);
+            if (JS_IsException(result)) {
+                dumpError();
+            } else {
+                success = true;
+            }
+            JS_FreeValue(ctx_, result);
+            
+            // 释放参数
+            if constexpr (argc > 0) {
+                freeArgs(argv, argc);
+            }
+        }
+        
+        JS_FreeValue(ctx_, func);
+        JS_FreeValue(ctx_, global);
+        return success;
+    }
     
-    JSContext* getContext() { return ctx_; }
-    
-    bool runFile(const std::string& path) {
+    static bool runFile(const std::string& path) {
         std::ifstream f(path);
         if (!f) { fprintf(stderr, "Cannot open: %s\n", path.c_str()); return false; }
         std::stringstream buf; buf << f.rdbuf();
@@ -296,30 +367,51 @@ public:
     }
     
     // 运行内联代码作为模块
-    bool runFile(const std::string& name, const std::string& code) {
+    static bool runFile(const std::string& name, const std::string& code) {
         return eval(code, name);
-    }
-    
-    bool runString(const std::string& code, const std::string& name = "<string>") {
-        return eval(code, name);
-    }
-    
-    bool runScript(const std::string& code, const std::string& name = "<script>") {
-        ensureInstalled();
-        JSValue r = JS_Eval(ctx_, code.c_str(), code.size(), name.c_str(), JS_EVAL_TYPE_GLOBAL);
-        if (JS_IsException(r)) { dumpError(); JS_FreeValue(ctx_, r); return false; }
-        JS_FreeValue(ctx_, r);
-        return true;
     }
 
 private:
-    JSRuntime* rt_;
-    JSContext* ctx_;
-    JSModule global_;
-    bool installed_ = false;  // 确保只安装一次
-    std::unordered_map<JSModuleDef*, JSModule*> modData_;  // 实例级模块映射
+    inline static JSRuntime* rt_ = nullptr;
+    inline static JSContext* ctx_ = nullptr;
+    inline static std::unique_ptr<JSModule> global_;
+    inline static bool installed_ = false;  // 确保只安装一次
+    inline static std::unordered_map<JSModuleDef*, JSModule*> modData_;  // 模块映射
     
-    bool eval(const std::string& code, const std::string& file = "<eval>") {
+    //=========================================================================
+    // 参数转换辅助函数
+    //=========================================================================
+    
+    // 将 C++ 类型转换为 JSValue
+    static JSValue toJSValue(int v) { return JS_NewInt32(ctx_, v); }
+    static JSValue toJSValue(int64_t v) { return JS_NewInt64(ctx_, v); }
+    static JSValue toJSValue(double v) { return JS_NewFloat64(ctx_, v); }
+    static JSValue toJSValue(float v) { return JS_NewFloat64(ctx_, v); }
+    static JSValue toJSValue(bool v) { return JS_NewBool(ctx_, v); }
+    static JSValue toJSValue(const char* v) { return JS_NewString(ctx_, v); }
+    static JSValue toJSValue(const std::string& v) { return JS_NewString(ctx_, v.c_str()); }
+    
+    // 递归转换参数
+    template<typename T, typename... Rest>
+    static void convertArgs(JSValue* argv, T first, Rest... rest) {
+        argv[0] = toJSValue(first);
+        if constexpr (sizeof...(Rest) > 0) {
+            convertArgs(argv + 1, rest...);
+        }
+    }
+    
+    // 释放参数数组
+    static void freeArgs(JSValue* argv, size_t count) {
+        for (size_t i = 0; i < count; i++) {
+            JS_FreeValue(ctx_, argv[i]);
+        }
+    }
+    
+    //=========================================================================
+    // 原有的私有方法
+    //=========================================================================
+    
+    static bool eval(const std::string& code, const std::string& file = "<eval>") {
         ensureInstalled();
         JSValue r = JS_Eval(ctx_, code.c_str(), code.size(), file.c_str(), JS_EVAL_TYPE_MODULE);
         if (JS_IsException(r)) { dumpError(); JS_FreeValue(ctx_, r); return false; }
@@ -327,16 +419,16 @@ private:
         return true;
     }
     
-    void ensureInstalled() {
+    static void ensureInstalled() {
         if (installed_) return;
         installed_ = true;
         
         JSValue g = JS_GetGlobalObject(ctx_);
-        installToObject(g, global_);
+        installToObject(g, *global_);
         JS_FreeValue(ctx_, g);
     }
 
-    void installToObject(JSValue obj, JSModule& mod) {
+    static void installToObject(JSValue obj, JSModule& mod) {
         for (auto& [name, wrapper] : mod.funcs_) {
             JSValue fn = createJSFunction(wrapper.get());
             JS_SetPropertyStr(ctx_, obj, name.c_str(), fn);
@@ -347,7 +439,7 @@ private:
     }
     
     // 使用 JSClassID + opaque 创建函数，避免 reinterpret_cast<int64_t>
-    JSValue createJSFunction(FuncBase* wrapper) {
+    static JSValue createJSFunction(FuncBase* wrapper) {
         // 创建一个带 opaque 的对象来持有 FuncBase 指针
         JSValue funcData = JS_NewObjectClass(ctx_, g_funcClassId);
         JS_SetOpaque(funcData, wrapper);
@@ -369,11 +461,11 @@ private:
     }
     
     static JSModuleDef* loadModule(JSContext* ctx, const char* name, void* opaque) {
-        auto* self = static_cast<JSEngine*>(opaque);
+        (void)opaque;  // 静态方案不使用 opaque
         
         // 查找 C++ 模块
-        JSModule* mod = self->findModule(name);
-        if (mod) return self->createCppModule(ctx, name, mod);
+        JSModule* mod = findModule(name);
+        if (mod) return createCppModule(ctx, name, mod);
         
         // 加载 JS 文件
         std::string path = name;
@@ -395,16 +487,17 @@ private:
         return (JSModuleDef*)JS_VALUE_GET_PTR(compiled);
     }
     
-    JSModule* findModule(const std::string& name) {
-        auto it = global_.children_.find(name);
-        return it != global_.children_.end() ? it->second.get() : nullptr;
+    static JSModule* findModule(const std::string& name) {
+        if (!global_) return nullptr;
+        auto it = global_->children_.find(name);
+        return it != global_->children_.end() ? it->second.get() : nullptr;
     }
     
-    JSModuleDef* createCppModule(JSContext* ctx, const char* name, JSModule* mod) {
+    static JSModuleDef* createCppModule(JSContext* ctx, const char* name, JSModule* mod) {
         JSModuleDef* m = JS_NewCModule(ctx, name, &JSEngine::initModuleStatic);
         if (!m) return nullptr;
         
-        modData_[m] = mod;  // 实例级映射
+        modData_[m] = mod;
         
         for (auto& [n, _] : mod->funcs_) JS_AddModuleExport(ctx, m, n.c_str());
         for (auto& [n, _] : mod->values_) JS_AddModuleExport(ctx, m, n.c_str());
@@ -414,17 +507,10 @@ private:
     }
 
     static int initModuleStatic(JSContext* ctx, JSModuleDef* m) {
-        // 通过 runtime opaque 获取 engine 实例
-        JSRuntime* rt = JS_GetRuntime(ctx);
-        void* opaque = JS_GetRuntimeOpaque(rt);
-        if (!opaque) {
-            // fallback: 使用单例
-            return JSEngine::instance().initModule(ctx, m);
-        }
-        return static_cast<JSEngine*>(opaque)->initModule(ctx, m);
+        return initModule(ctx, m);
     }
     
-    int initModule(JSContext* ctx, JSModuleDef* m) {
+    static int initModule(JSContext* ctx, JSModuleDef* m) {
         auto it = modData_.find(m);
         if (it == modData_.end()) return -1;
         JSModule* mod = it->second;
@@ -447,7 +533,7 @@ private:
         return 0;
     }
     
-    void installChildModule(JSContext* ctx, JSValue obj, JSModule& mod) {
+    static void installChildModule(JSContext* ctx, JSValue obj, JSModule& mod) {
         for (auto& [name, wrapper] : mod.funcs_) {
             JSValue fn = createJSFunction(wrapper.get());
             JS_SetPropertyStr(ctx, obj, name.c_str(), fn);
@@ -462,7 +548,7 @@ private:
         }
     }
     
-    void dumpError() {
+    static void dumpError() {
         JSValue ex = JS_GetException(ctx_);
         const char* s = JS_ToCString(ctx_, ex);
         if (s) { fprintf(stderr, "Error: %s\n", s); JS_FreeCString(ctx_, s); }

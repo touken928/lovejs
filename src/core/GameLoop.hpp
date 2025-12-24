@@ -7,7 +7,6 @@
 #include <sokol_gfx.h>
 #include <sokol_glue.h>
 #include <sokol_log.h>
-#include <quickjs.h>
 #include <chrono>
 #include <string>
 #include <iostream>
@@ -61,6 +60,7 @@ private:
      * 初始化所有 JS 模块
      */
     static void initializeModules() {
+        JSEngine::initialize();
         initAllModules();
     }
     
@@ -77,7 +77,7 @@ private:
         file.close();
         
         // 加载 JS 模块
-        if (!loadMainModule(JSEngine::instance(), jsFile)) {
+        if (!loadMainModule(jsFile)) {
             std::cerr << "Error: failed to load " << jsFile << std::endl;
             exit(-1);
         }
@@ -152,7 +152,7 @@ private:
         lastTime_ = currentTime;
         
         // 更新逻辑
-        callCallbackWithDouble("update", deltaTime);
+        callCallback("update", deltaTime);
         
         // 渲染
         renderer_->beginFrame();
@@ -164,38 +164,44 @@ private:
      * 清理回调 - 释放资源
      */
     static void cleanup_cb() {
+        // 先清理图形资源（Sokol）
         sg_shutdown();
+        
+        // 再显式清理 JS 引擎
+        JSEngine::cleanup();
+        
+        // 清空静态指针
+        renderer_ = nullptr;
+        loadCalled_ = false;
     }
     
     /**
      * 事件回调 - 处理输入事件
      */
     static void event_cb(const sapp_event* event) {
-        if (!ctx_) return;
-        
         switch (event->type) {
             case SAPP_EVENTTYPE_KEY_DOWN:
                 if (!event->key_repeat) {
-                    callCallbackWithString("keypressed", getKeyName(event->key_code).c_str());
+                    callCallback("keypressed", getKeyName(event->key_code).c_str());
                 }
                 break;
                 
             case SAPP_EVENTTYPE_KEY_UP:
-                callCallbackWithString("keyreleased", getKeyName(event->key_code).c_str());
+                callCallback("keyreleased", getKeyName(event->key_code).c_str());
                 break;
                 
             case SAPP_EVENTTYPE_MOUSE_DOWN:
-                callCallbackWithMouseButton("mousepressed", 
+                callCallback("mousepressed", 
                     (int)event->mouse_x, (int)event->mouse_y, (int)event->mouse_button + 1);
                 break;
                 
             case SAPP_EVENTTYPE_MOUSE_UP:
-                callCallbackWithMouseButton("mousereleased",
+                callCallback("mousereleased",
                     (int)event->mouse_x, (int)event->mouse_y, (int)event->mouse_button + 1);
                 break;
                 
             case SAPP_EVENTTYPE_MOUSE_SCROLL:
-                callCallbackWithWheel("wheelmoved", event->scroll_x, event->scroll_y);
+                callCallback("wheelmoved", event->scroll_x, event->scroll_y);
                 break;
                 
             default:
@@ -210,10 +216,7 @@ private:
     /**
      * 加载主 JS 模块并注册全局回调
      */
-    static bool loadMainModule(JSEngine& engine, const std::string& jsFile) {
-        engine_ = &engine;
-        ctx_ = engine.getContext();
-        
+    static bool loadMainModule(const std::string& jsFile) {
         // 生成模块加载代码
         std::string code = R"(
             import * as _main from ')" + jsFile + R"(';
@@ -227,7 +230,7 @@ private:
             globalThis.wheelmoved = _main.wheelmoved;
         )";
         
-        if (!engine.runFile("_loader.js", code)) {
+        if (!JSEngine::runFile("_loader.js", code)) {
             std::cerr << "Failed to load module: " << jsFile << std::endl;
             return false;
         }
@@ -250,83 +253,11 @@ private:
     //=========================================================================
     
     /**
-     * 调用 JS 函数的通用方法
+     * 调用 JS 回调（统一接口，支持任意参数）
      */
-    static void callJSFunction(const char* name, int argc, JSValue* argv) {
-        if (!ctx_) return;
-        
-        JSValue global = JS_GetGlobalObject(ctx_);
-        JSValue func = JS_GetPropertyStr(ctx_, global, name);
-        
-        if (JS_IsFunction(ctx_, func)) {
-            JSValue result = JS_Call(ctx_, func, global, argc, argv);
-            if (JS_IsException(result)) {
-                JSValue ex = JS_GetException(ctx_);
-                const char* str = JS_ToCString(ctx_, ex);
-                if (str) {
-                    std::cerr << "JS Error [" << name << "]: " << str << std::endl;
-                    JS_FreeCString(ctx_, str);
-                }
-                JS_FreeValue(ctx_, ex);
-            }
-            JS_FreeValue(ctx_, result);
-        }
-        
-        JS_FreeValue(ctx_, func);
-        JS_FreeValue(ctx_, global);
-    }
-    
-    /**
-     * 调用无参数回调
-     */
-    static void callCallback(const char* name) {
-        callJSFunction(name, 0, nullptr);
-    }
-    
-    /**
-     * 调用带 double 参数的回调
-     */
-    static void callCallbackWithDouble(const char* name, double value) {
-        JSValue argv[1] = { JS_NewFloat64(ctx_, value) };
-        callJSFunction(name, 1, argv);
-        JS_FreeValue(ctx_, argv[0]);
-    }
-    
-    /**
-     * 调用带 string 参数的回调
-     */
-    static void callCallbackWithString(const char* name, const char* value) {
-        JSValue argv[1] = { JS_NewString(ctx_, value) };
-        callJSFunction(name, 1, argv);
-        JS_FreeValue(ctx_, argv[0]);
-    }
-    
-    /**
-     * 调用鼠标按钮回调
-     */
-    static void callCallbackWithMouseButton(const char* name, int x, int y, int button) {
-        JSValue argv[3] = { 
-            JS_NewInt32(ctx_, x), 
-            JS_NewInt32(ctx_, y), 
-            JS_NewInt32(ctx_, button) 
-        };
-        callJSFunction(name, 3, argv);
-        JS_FreeValue(ctx_, argv[0]);
-        JS_FreeValue(ctx_, argv[1]);
-        JS_FreeValue(ctx_, argv[2]);
-    }
-    
-    /**
-     * 调用鼠标滚轮回调
-     */
-    static void callCallbackWithWheel(const char* name, float x, float y) {
-        JSValue argv[2] = { 
-            JS_NewFloat64(ctx_, x), 
-            JS_NewFloat64(ctx_, y) 
-        };
-        callJSFunction(name, 2, argv);
-        JS_FreeValue(ctx_, argv[0]);
-        JS_FreeValue(ctx_, argv[1]);
+    template<typename... Args>
+    static void callCallback(const char* name, Args... args) {
+        JSEngine::callGlobal(name, args...);
     }
     
     //=========================================================================
@@ -433,8 +364,6 @@ private:
     // 静态成员变量
     //=========================================================================
     
-    inline static JSEngine* engine_ = nullptr;
-    inline static JSContext* ctx_ = nullptr;
     inline static render::SokolRenderer* renderer_ = nullptr;
     inline static std::chrono::high_resolution_clock::time_point lastTime_;
     inline static bool loadCalled_ = false;

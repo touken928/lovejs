@@ -32,7 +32,8 @@ public:
     }
     
     ~SokolRenderer() override {
-        destroyWindow();
+        // 不在析构函数中清理，因为 sg_shutdown() 已经在 cleanup_cb 中调用
+        // 避免重复清理导致的问题
     }
     
     // 窗口管理
