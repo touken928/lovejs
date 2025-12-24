@@ -4,10 +4,23 @@
  * 
  * 特性:
  *   - 链式 API 注册函数、值和模块
- *   - 自动类型转换 (int, int64_t, double, bool, string, vector<T>)
- *   - 支持 ES6 模块和脚本两种执行模式
+ *   - 自动类型转换 (int, int64_t, double, float, bool, string, vector<T>)
+ *   - 支持 ES6 模块执行模式
  *   - 支持嵌套子模块
  *   - 使用 QuickJS 官方 JSClassID + opaque 机制管理生命周期
+ * 
+ * 生命周期约束:
+ *   - 本引擎设计为"进程级单例，一次性使用"模式
+ *   - initialize() 只能调用一次，cleanup() 后不可重新初始化
+ *   - 模块注册必须在首次 JS 代码执行前完成
+ *   - cleanup() 后所有 JS 调用将被拒绝
+ *   - 不支持运行时卸载/重装模块
+ * 
+ * 类型安全:
+ *   - JSConv<T> 仅支持显式特化的类型
+ *   - 不支持 const char* (生命周期不安全)，请使用 std::string
+ *   - 数组长度限制为 1e6，防止 OOM
+ *   - 函数参数数量严格校验
  */
 
 #pragma once
@@ -61,6 +74,10 @@ template<> struct JSConv<double> {
 
 template<> struct JSConv<bool> {
     static bool from(JSContext* c, JSValue v, bool& ok) {
+        if (!JS_IsBool(v)) {
+            ok = false;
+            return false;
+        }
         ok = true;
         return JS_ToBool(c, v);
     }
@@ -79,31 +96,58 @@ template<> struct JSConv<std::string> {
     static JSValue to(JSContext* c, const std::string& v) { return JS_NewString(c, v.c_str()); }
 };
 
+// 删除 const char* 特化 - 生命周期不安全，统一使用 std::string
+
+template<> struct JSConv<float> {
+    static float from(JSContext* c, JSValue v, bool& ok) {
+        double r;
+        if (JS_ToFloat64(c, &r, v) < 0) { ok = false; return 0; }
+        ok = true;
+        return static_cast<float>(r);
+    }
+    static JSValue to(JSContext* c, float v) { return JS_NewFloat64(c, v); }
+};
+
 // vector<T> <-> JS Array 转换
 template<typename T>
 struct JSConv<std::vector<T>> {
+    static constexpr int64_t MAX_ARRAY_LENGTH = 1000000;  // 1e6 上限
+    
     static std::vector<T> from(JSContext* c, JSValue v, bool& ok) {
-        std::vector<T> result;
         if (!JS_IsArray(c, v)) {
             ok = false;
             JS_ThrowTypeError(c, "expected array");
-            return result;
+            return {};
         }
         JSValue lenVal = JS_GetPropertyStr(c, v, "length");
         int64_t len = 0;
         if (JS_ToInt64(c, &len, lenVal) < 0) {
             JS_FreeValue(c, lenVal);
             ok = false;
-            return result;
+            return {};
         }
         JS_FreeValue(c, lenVal);
+        
+        // 检查数组长度上限
+        if (len > MAX_ARRAY_LENGTH) {
+            ok = false;
+            JS_ThrowRangeError(c, "array length %lld exceeds maximum %lld", 
+                             (long long)len, (long long)MAX_ARRAY_LENGTH);
+            return {};
+        }
+        
+        std::vector<T> result;
         result.reserve(len);
         for (int64_t i = 0; i < len; i++) {
             JSValue elem = JS_GetPropertyUint32(c, v, i);
             bool elemOk;
             T val = JSConv<T>::from(c, elem, elemOk);
             JS_FreeValue(c, elem);
-            if (!elemOk) { ok = false; return result; }
+            if (!elemOk) {
+                ok = false;
+                JS_ThrowTypeError(c, "array element at index %lld conversion failed", (long long)i);
+                return {};  // 返回空 vector，避免部分构造
+            }
             result.push_back(std::move(val));
         }
         ok = true;
@@ -111,14 +155,35 @@ struct JSConv<std::vector<T>> {
     }
     static JSValue to(JSContext* c, const std::vector<T>& v) {
         JSValue arr = JS_NewArray(c);
+        if (JS_IsException(arr)) {
+            return arr;  // 传播异常
+        }
         for (size_t i = 0; i < v.size(); i++) {
-            JS_SetPropertyUint32(c, arr, i, JSConv<T>::to(c, v[i]));
+            JSValue elem = JSConv<T>::to(c, v[i]);
+            if (JS_IsException(elem)) {
+                JS_FreeValue(c, arr);
+                return elem;  // 传播异常
+            }
+            if (JS_SetPropertyUint32(c, arr, i, elem) < 0) {
+                JS_FreeValue(c, arr);
+                return JS_EXCEPTION;
+            }
         }
         return arr;
     }
 };
 
 template<typename T> using decay_t = std::remove_cv_t<std::remove_reference_t<T>>;
+
+// 辅助模板用于更好的 static_assert 错误信息
+template<typename> struct dependent_false : std::false_type {};
+
+// 未特化类型的编译期错误提示
+template<typename T>
+struct JSConv {
+    static_assert(dependent_false<T>::value, 
+        "JSConv<T> not specialized for this type. Supported types: int, int64_t, double, float, bool, std::string, std::vector<T>");
+};
 
 //=============================================================================
 // 函数包装器 - 将 C++ 函数包装为 JS 可调用（使用 JSClassID + opaque）
@@ -160,14 +225,18 @@ struct FuncWrap : FuncBase {
     JSValue call(JSContext* c, int argc, JSValue* argv) override {
         // 参数数量校验
         constexpr int expected = sizeof...(Args);
-        if (argc < expected) {
-            return JS_ThrowTypeError(c, "expected %d arguments, got %d", expected, argc);
+        if (argc != expected) {
+            return JS_ThrowTypeError(c, "expected exactly %d arguments, got %d", expected, argc);
         }
         
         bool ok;
         auto args = unpackArgs<Args...>(c, argv, ok);
         if (!ok) {
-            return JS_EXCEPTION;  // 类型转换已抛出异常
+            // 类型转换失败，需要抛出明确异常
+            if (!JS_IsException(JS_GetException(c))) {
+                return JS_ThrowTypeError(c, "argument type conversion failed");
+            }
+            return JS_EXCEPTION;
         }
         
         if constexpr (std::is_void_v<Ret>) {
@@ -190,7 +259,7 @@ class JSModule {
 public:
     JSModule& module(const std::string& name) {
         auto& child = children_[name];
-        if (!child) child = std::make_unique<JSModule>(name, this, engine_);
+        if (!child) child = std::make_unique<JSModule>(name, this);
         return *child;
     }
     
@@ -218,14 +287,13 @@ public:
 private:
     std::string name_;
     JSModule* parent_ = nullptr;
-    JSEngine* engine_ = nullptr;
     std::unordered_map<std::string, std::unique_ptr<JSModule>> children_;
     std::unordered_map<std::string, std::unique_ptr<FuncBase>> funcs_;
     std::unordered_map<std::string, std::function<JSValue(JSContext*)>> values_;
     
 public:
-    JSModule(const std::string& name, JSModule* parent, JSEngine* engine)
-        : name_(name), parent_(parent), engine_(engine) {}
+    JSModule(const std::string& name, JSModule* parent)
+        : name_(name), parent_(parent) {}
     
 private:
     template<typename F, typename Ret, typename C, typename... Args>
@@ -283,9 +351,16 @@ public:
      */
     static JSModule& global() { 
         if (!global_) {
-            global_ = std::make_unique<JSModule>("global", nullptr, nullptr);
+            global_ = std::make_unique<JSModule>("global", nullptr);
         }
         return *global_; 
+    }
+    
+    /**
+     * 检查是否已安装
+     */
+    static bool isInstalled() {
+        return installed_;
     }
     
     /**
@@ -294,8 +369,11 @@ public:
     static void cleanup() {
         if (!ctx_ && !rt_) return; // 已经清理过了
         
+        cleanedUp_ = true;  // 设置清理标志
+        
         // 清理模块映射
         modData_.clear();
+        jsModuleCache_.clear();
         
         // 运行垃圾回收
         if (ctx_ && rt_) {
@@ -317,6 +395,13 @@ public:
     }
     
     /**
+     * 设置错误回调（用于集成日志系统）
+     */
+    static void setErrorCallback(std::function<void(const std::string&)> callback) {
+        errorCallback_ = std::move(callback);
+    }
+    
+    /**
      * 调用全局 JS 函数（支持任意类型参数）
      * 使用示例：
      *   callGlobal("update", 0.016);
@@ -325,7 +410,10 @@ public:
      */
     template<typename... Args>
     static bool callGlobal(const char* name, Args... args) {
-        if (!ctx_) return false;
+        if (cleanedUp_ || !ctx_) {
+            fprintf(stderr, "Error: JSEngine has been cleaned up, cannot call JS functions\n");
+            return false;
+        }
         
         JSValue global = JS_GetGlobalObject(ctx_);
         JSValue func = JS_GetPropertyStr(ctx_, global, name);
@@ -334,23 +422,31 @@ public:
         if (JS_IsFunction(ctx_, func)) {
             // 转换参数为 JSValue 数组
             constexpr size_t argc = sizeof...(Args);
-            JSValue argv[argc > 0 ? argc : 1];
+            
             if constexpr (argc > 0) {
+                JSValue argv[argc];
                 convertArgs(argv, args...);
-            }
-            
-            // 调用函数
-            JSValue result = JS_Call(ctx_, func, global, argc, argc > 0 ? argv : nullptr);
-            if (JS_IsException(result)) {
-                dumpError();
-            } else {
-                success = true;
-            }
-            JS_FreeValue(ctx_, result);
-            
-            // 释放参数
-            if constexpr (argc > 0) {
+                
+                // 调用函数
+                JSValue result = JS_Call(ctx_, func, global, argc, argv);
+                if (JS_IsException(result)) {
+                    dumpError();
+                } else {
+                    success = true;
+                }
+                JS_FreeValue(ctx_, result);
+                
+                // 释放参数
                 freeArgs(argv, argc);
+            } else {
+                // 零参数情况
+                JSValue result = JS_Call(ctx_, func, global, 0, nullptr);
+                if (JS_IsException(result)) {
+                    dumpError();
+                } else {
+                    success = true;
+                }
+                JS_FreeValue(ctx_, result);
             }
         }
         
@@ -360,6 +456,10 @@ public:
     }
     
     static bool runFile(const std::string& path) {
+        if (cleanedUp_ || !ctx_) {
+            fprintf(stderr, "Error: JSEngine has been cleaned up\n");
+            return false;
+        }
         std::ifstream f(path);
         if (!f) { fprintf(stderr, "Cannot open: %s\n", path.c_str()); return false; }
         std::stringstream buf; buf << f.rdbuf();
@@ -368,6 +468,10 @@ public:
     
     // 运行内联代码作为模块
     static bool runFile(const std::string& name, const std::string& code) {
+        if (cleanedUp_ || !ctx_) {
+            fprintf(stderr, "Error: JSEngine has been cleaned up\n");
+            return false;
+        }
         return eval(code, name);
     }
 
@@ -377,24 +481,18 @@ private:
     inline static std::unique_ptr<JSModule> global_;
     inline static bool installed_ = false;  // 确保只安装一次
     inline static std::unordered_map<JSModuleDef*, JSModule*> modData_;  // 模块映射
+    inline static std::unordered_map<std::string, JSModuleDef*> jsModuleCache_;  // JS 模块缓存
+    inline static bool cleanedUp_ = false;  // 清理状态标志
+    inline static std::function<void(const std::string&)> errorCallback_;  // 错误回调
     
     //=========================================================================
     // 参数转换辅助函数
     //=========================================================================
     
-    // 将 C++ 类型转换为 JSValue
-    static JSValue toJSValue(int v) { return JS_NewInt32(ctx_, v); }
-    static JSValue toJSValue(int64_t v) { return JS_NewInt64(ctx_, v); }
-    static JSValue toJSValue(double v) { return JS_NewFloat64(ctx_, v); }
-    static JSValue toJSValue(float v) { return JS_NewFloat64(ctx_, v); }
-    static JSValue toJSValue(bool v) { return JS_NewBool(ctx_, v); }
-    static JSValue toJSValue(const char* v) { return JS_NewString(ctx_, v); }
-    static JSValue toJSValue(const std::string& v) { return JS_NewString(ctx_, v.c_str()); }
-    
-    // 递归转换参数
+    // 递归转换参数（统一使用 JSConv）
     template<typename T, typename... Rest>
     static void convertArgs(JSValue* argv, T first, Rest... rest) {
-        argv[0] = toJSValue(first);
+        argv[0] = JSConv<decay_t<T>>::to(ctx_, first);
         if constexpr (sizeof...(Rest) > 0) {
             convertArgs(argv + 1, rest...);
         }
@@ -431,10 +529,27 @@ private:
     static void installToObject(JSValue obj, JSModule& mod) {
         for (auto& [name, wrapper] : mod.funcs_) {
             JSValue fn = createJSFunction(wrapper.get());
-            JS_SetPropertyStr(ctx_, obj, name.c_str(), fn);
+            if (JS_IsException(fn) || JS_SetPropertyStr(ctx_, obj, name.c_str(), fn) < 0) {
+                fprintf(stderr, "Error: Failed to install function '%s'\n", name.c_str());
+            }
         }
         for (auto& [name, creator] : mod.values_) {
-            JS_SetPropertyStr(ctx_, obj, name.c_str(), creator(ctx_));
+            JSValue val = creator(ctx_);
+            if (JS_IsException(val) || JS_SetPropertyStr(ctx_, obj, name.c_str(), val) < 0) {
+                fprintf(stderr, "Error: Failed to install value '%s'\n", name.c_str());
+            }
+        }
+        // 递归安装子模块
+        for (auto& [name, child] : mod.children_) {
+            JSValue childObj = JS_NewObject(ctx_);
+            if (JS_IsException(childObj)) {
+                fprintf(stderr, "Error: Failed to create child module object '%s'\n", name.c_str());
+                continue;
+            }
+            installChildModule(ctx_, childObj, *child);
+            if (JS_SetPropertyStr(ctx_, obj, name.c_str(), childObj) < 0) {
+                fprintf(stderr, "Error: Failed to install child module '%s'\n", name.c_str());
+            }
         }
     }
     
@@ -463,12 +578,25 @@ private:
     static JSModuleDef* loadModule(JSContext* ctx, const char* name, void* opaque) {
         (void)opaque;  // 静态方案不使用 opaque
         
+        // 检查是否已清理
+        if (cleanedUp_) {
+            JS_ThrowInternalError(ctx, "JSEngine has been cleaned up");
+            return nullptr;
+        }
+        
         // 查找 C++ 模块
         JSModule* mod = findModule(name);
         if (mod) return createCppModule(ctx, name, mod);
         
+        // 检查 JS 模块缓存
+        std::string modulePath = name;
+        auto cacheIt = jsModuleCache_.find(modulePath);
+        if (cacheIt != jsModuleCache_.end()) {
+            return cacheIt->second;
+        }
+        
         // 加载 JS 文件
-        std::string path = name;
+        std::string path = modulePath;
         if (path.find(".js") == std::string::npos) path += ".js";
         std::ifstream f(path);
         if (!f) { 
@@ -484,7 +612,12 @@ private:
         if (JS_IsException(compiled)) {
             return nullptr;
         }
-        return (JSModuleDef*)JS_VALUE_GET_PTR(compiled);
+        
+        JSModuleDef* moduleDef = (JSModuleDef*)JS_VALUE_GET_PTR(compiled);
+        // 注意：不能 FreeValue，因为 moduleDef 需要保持有效
+        // compiled 的生命周期由 QuickJS 内部管理
+        jsModuleCache_[modulePath] = moduleDef;  // 缓存模块
+        return moduleDef;
     }
     
     static JSModule* findModule(const std::string& name) {
@@ -518,17 +651,31 @@ private:
         // 导出函数
         for (auto& [name, wrapper] : mod->funcs_) {
             JSValue fn = createJSFunction(wrapper.get());
-            JS_SetModuleExport(ctx, m, name.c_str(), fn);
+            if (JS_IsException(fn) || JS_SetModuleExport(ctx, m, name.c_str(), fn) < 0) {
+                fprintf(stderr, "Error: Failed to export function '%s'\n", name.c_str());
+                return -1;
+            }
         }
         // 导出值
         for (auto& [name, creator] : mod->values_) {
-            JS_SetModuleExport(ctx, m, name.c_str(), creator(ctx));
+            JSValue val = creator(ctx);
+            if (JS_IsException(val) || JS_SetModuleExport(ctx, m, name.c_str(), val) < 0) {
+                fprintf(stderr, "Error: Failed to export value '%s'\n", name.c_str());
+                return -1;
+            }
         }
         // 导出子模块为对象
         for (auto& [name, child] : mod->children_) {
             JSValue obj = JS_NewObject(ctx);
+            if (JS_IsException(obj)) {
+                fprintf(stderr, "Error: Failed to create child module object '%s'\n", name.c_str());
+                return -1;
+            }
             installChildModule(ctx, obj, *child);
-            JS_SetModuleExport(ctx, m, name.c_str(), obj);
+            if (JS_SetModuleExport(ctx, m, name.c_str(), obj) < 0) {
+                fprintf(stderr, "Error: Failed to export child module '%s'\n", name.c_str());
+                return -1;
+            }
         }
         return 0;
     }
@@ -536,28 +683,71 @@ private:
     static void installChildModule(JSContext* ctx, JSValue obj, JSModule& mod) {
         for (auto& [name, wrapper] : mod.funcs_) {
             JSValue fn = createJSFunction(wrapper.get());
-            JS_SetPropertyStr(ctx, obj, name.c_str(), fn);
+            if (JS_IsException(fn) || JS_SetPropertyStr(ctx, obj, name.c_str(), fn) < 0) {
+                fprintf(stderr, "Error: Failed to install child function '%s'\n", name.c_str());
+            }
         }
         for (auto& [name, creator] : mod.values_) {
-            JS_SetPropertyStr(ctx, obj, name.c_str(), creator(ctx));
+            JSValue val = creator(ctx);
+            if (JS_IsException(val) || JS_SetPropertyStr(ctx, obj, name.c_str(), val) < 0) {
+                fprintf(stderr, "Error: Failed to install child value '%s'\n", name.c_str());
+            }
         }
         for (auto& [name, child] : mod.children_) {
             JSValue childObj = JS_NewObject(ctx);
+            if (JS_IsException(childObj)) {
+                fprintf(stderr, "Error: Failed to create nested child module '%s'\n", name.c_str());
+                continue;
+            }
             installChildModule(ctx, childObj, *child);
-            JS_SetPropertyStr(ctx, obj, name.c_str(), childObj);
+            if (JS_SetPropertyStr(ctx, obj, name.c_str(), childObj) < 0) {
+                fprintf(stderr, "Error: Failed to install nested child module '%s'\n", name.c_str());
+            }
         }
     }
     
     static void dumpError() {
         JSValue ex = JS_GetException(ctx_);
-        const char* s = JS_ToCString(ctx_, ex);
-        if (s) { fprintf(stderr, "Error: %s\n", s); JS_FreeCString(ctx_, s); }
+        std::string errorMsg;
+        
+        // 优先获取 message 属性
+        JSValue msgVal = JS_GetPropertyStr(ctx_, ex, "message");
+        if (!JS_IsUndefined(msgVal) && !JS_IsException(msgVal)) {
+            const char* msg = JS_ToCString(ctx_, msgVal);
+            if (msg) {
+                errorMsg = std::string("Error: ") + msg;
+                JS_FreeCString(ctx_, msg);
+            }
+        }
+        JS_FreeValue(ctx_, msgVal);
+        
+        // fallback 到直接转字符串
+        if (errorMsg.empty()) {
+            const char* s = JS_ToCString(ctx_, ex);
+            if (s) { 
+                errorMsg = std::string("Error: ") + s;
+                JS_FreeCString(ctx_, s); 
+            } else {
+                errorMsg = "Error: [unable to convert exception to string]";
+            }
+        }
+        
         JSValue stack = JS_GetPropertyStr(ctx_, ex, "stack");
-        if (!JS_IsUndefined(stack)) {
+        if (!JS_IsUndefined(stack) && !JS_IsException(stack)) {
             const char* st = JS_ToCString(ctx_, stack);
-            if (st) { fprintf(stderr, "%s\n", st); JS_FreeCString(ctx_, st); }
+            if (st) { 
+                errorMsg += std::string("\n") + st;
+                JS_FreeCString(ctx_, st); 
+            }
         }
         JS_FreeValue(ctx_, stack);
         JS_FreeValue(ctx_, ex);
+        
+        // 使用回调或默认输出
+        if (errorCallback_) {
+            errorCallback_(errorMsg);
+        } else {
+            fprintf(stderr, "%s\n", errorMsg.c_str());
+        }
     }
 };

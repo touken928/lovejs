@@ -182,12 +182,12 @@ private:
         switch (event->type) {
             case SAPP_EVENTTYPE_KEY_DOWN:
                 if (!event->key_repeat) {
-                    callCallback("keypressed", getKeyName(event->key_code).c_str());
+                    callCallback("keypressed", getKeyName(event->key_code));
                 }
                 break;
                 
             case SAPP_EVENTTYPE_KEY_UP:
-                callCallback("keyreleased", getKeyName(event->key_code).c_str());
+                callCallback("keyreleased", getKeyName(event->key_code));
                 break;
                 
             case SAPP_EVENTTYPE_MOUSE_DOWN:
