@@ -227,6 +227,12 @@ public:
             "}\n";
         shd_desc.fragment_func.entry = "main";
         
+        // D3D11 需要在shader描述中指定语义名称
+        shd_desc.attrs[0].hlsl_sem_name = "POSITION";
+        shd_desc.attrs[0].hlsl_sem_index = 0;
+        shd_desc.attrs[1].hlsl_sem_name = "COLOR";
+        shd_desc.attrs[1].hlsl_sem_index = 0;
+        
         #elif defined(__APPLE__)
         // Metal shader for macOS/iOS
         shd_desc.vertex_func.source = 
@@ -349,14 +355,6 @@ private:
         pip_desc.shader = shd_;
         pip_desc.layout.attrs[0].format = SG_VERTEXFORMAT_FLOAT2;
         pip_desc.layout.attrs[1].format = SG_VERTEXFORMAT_FLOAT4;
-        
-        // D3D11 需要语义名称
-        #if defined(_WIN32)
-        pip_desc.layout.attrs[0].sem_name = "POSITION";
-        pip_desc.layout.attrs[1].sem_name = "COLOR";
-        pip_desc.layout.attrs[1].sem_index = 0;
-        #endif
-        
         pip_desc.primitive_type = primitiveType_;
         pip_desc.colors[0].blend.enabled = true;
         pip_desc.colors[0].blend.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA;
