@@ -4,6 +4,11 @@
 set(SOKOL_DIR ${CMAKE_SOURCE_DIR}/third_party/sokol)
 set(SOKOL_BUILD_DIR ${CMAKE_BINARY_DIR}/sokol)
 
+# 检查 sokol 子模块是否存在
+if(NOT EXISTS ${SOKOL_DIR}/sokol_app.h)
+    message(FATAL_ERROR "Sokol not found. Please run: git submodule update --init --recursive")
+endif()
+
 # 创建 sokol 构建目录
 file(MAKE_DIRECTORY ${SOKOL_BUILD_DIR})
 

@@ -70,7 +70,7 @@ export function wheelmoved(x, y) {}
 git clone https://github.com/touken928/lovejs.git
 cd lovejs
 
-# Initialize submodules
+# Initialize submodules (IMPORTANT!)
 git submodule update --init --recursive
 
 # Configure and build (static linking by default)
