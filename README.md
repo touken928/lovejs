@@ -66,12 +66,9 @@ export function wheelmoved(x, y) {}
 ### Build Steps
 
 ```bash
-# Clone the repository
-git clone https://github.com/touken928/lovejs.git
+# Clone the repository with submodules
+git clone --recursive --depth 1 https://github.com/touken928/lovejs.git
 cd lovejs
-
-# Initialize submodules (IMPORTANT!)
-git submodule update --init --recursive
 
 # Configure and build (static linking by default)
 cmake -B build -DCMAKE_BUILD_TYPE=Release
