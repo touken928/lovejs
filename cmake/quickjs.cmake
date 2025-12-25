@@ -10,6 +10,7 @@ endif()
 # QuickJS 源文件
 set(QUICKJS_SOURCES
     ${QUICKJS_DIR}/quickjs.c
+    ${QUICKJS_DIR}/quickjs-libc.c
     ${QUICKJS_DIR}/libregexp.c
     ${QUICKJS_DIR}/libunicode.c
     ${QUICKJS_DIR}/cutils.c
@@ -23,6 +24,7 @@ file(MAKE_DIRECTORY ${QUICKJS_INCLUDE_DIR})
 # 需要的头文件列表
 set(QUICKJS_HEADERS
     quickjs.h
+    quickjs-libc.h
 )
 
 foreach(header ${QUICKJS_HEADERS})

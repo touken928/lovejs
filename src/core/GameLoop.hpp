@@ -11,6 +11,7 @@
 #include <string>
 #include <iostream>
 #include <fstream>
+#include <vector>
 
 /**
  * GameLoop - 游戏主循环管理器
@@ -23,18 +24,37 @@
  * 使用方式：
  *   sapp_desc desc = GameLoop::setup("main.js");
  *   sapp_run(&desc);
+ *   
+ *   // 或者加载字节码
+ *   sapp_desc desc = GameLoop::setupBytecode("main.qbc");
+ *   sapp_run(&desc);
  */
 class GameLoop {
 public:
     /**
-     * 设置游戏循环并返回 Sokol 应用配置
+     * 设置游戏循环并返回 Sokol 应用配置（JS 源文件）
      * @param jsFile JS 入口文件路径
      * @return Sokol 应用描述符
      */
     static sapp_desc setup(const char* jsFile) {
+        bytecodeMode_ = false;
         initializeRenderer();
         initializeModules();
         loadJSFile(jsFile);
+        
+        return createAppDesc();
+    }
+    
+    /**
+     * 设置游戏循环并返回 Sokol 应用配置（字节码文件）
+     * @param qbcFile 字节码文件路径
+     * @return Sokol 应用描述符
+     */
+    static sapp_desc setupBytecode(const char* qbcFile) {
+        bytecodeMode_ = true;
+        initializeRenderer();
+        initializeModules();
+        loadBytecodeFile(qbcFile);
         
         return createAppDesc();
     }
@@ -83,6 +103,37 @@ private:
         }
         
         // 预先调用 load 回调，让 JS 设置窗口参数
+        callLoadCallback();
+    }
+    
+    /**
+     * 加载字节码文件
+     */
+    static void loadBytecodeFile(const char* qbcFile) {
+        // 读取字节码文件
+        std::ifstream file(qbcFile, std::ios::binary | std::ios::ate);
+        if (!file.good()) {
+            std::cerr << "Error: file not found: " << qbcFile << std::endl;
+            exit(-1);
+        }
+        
+        std::streamsize size = file.tellg();
+        file.seekg(0, std::ios::beg);
+        
+        bytecodeData_.resize(size);
+        if (!file.read(reinterpret_cast<char*>(bytecodeData_.data()), size)) {
+            std::cerr << "Error: failed to read " << qbcFile << std::endl;
+            exit(-1);
+        }
+        file.close();
+        
+        // 加载字节码模块
+        if (!loadBytecodeModule()) {
+            std::cerr << "Error: failed to load bytecode " << qbcFile << std::endl;
+            exit(-1);
+        }
+        
+        // 预先调用 load 回调
         callLoadCallback();
     }
     
@@ -239,6 +290,17 @@ private:
     }
     
     /**
+     * 加载字节码模块并注册全局回调
+     */
+    static bool loadBytecodeModule() {
+        if (!JSEngine::runBytecode(bytecodeData_.data(), bytecodeData_.size())) {
+            std::cerr << "Failed to load bytecode module" << std::endl;
+            return false;
+        }
+        return true;
+    }
+    
+    /**
      * 预先调用 load 回调
      */
     static void callLoadCallback() {
@@ -367,4 +429,6 @@ private:
     inline static render::SokolRenderer* renderer_ = nullptr;
     inline static std::chrono::high_resolution_clock::time_point lastTime_;
     inline static bool loadCalled_ = false;
+    inline static bool bytecodeMode_ = false;
+    inline static std::vector<uint8_t> bytecodeData_;
 };

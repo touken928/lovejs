@@ -9,7 +9,7 @@ LoveJS 是一个基于 JavaScript 的 2D 游戏引擎，仿照 Love2D 设计，�
 
 ## 快速开始
 
-### 1. 创建main.js
+### 1. 创建 main.js
 
 ```javascript
 import { setWindow, clear, present, setColor, circle } from 'graphics';
@@ -42,11 +42,46 @@ export function wheelmoved(x, y) {}
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j8
 
-# 运行默认的 main.js
-./build/bin/lovejs
+# 运行 JS 文件
+lovejs run main.js
 
-# 运行指定的 JS 文件
-./build/bin/lovejs examples/hello.js
+# 运行示例
+lovejs run examples/hello.js
+```
+
+## 命令行工具
+
+```bash
+# 显示帮助
+lovejs help
+
+# 运行 JS 源文件
+lovejs run main.js
+
+# 运行字节码文件
+lovejs run game.qbc
+
+# 编译 JS 到字节码（输出到 ./dist/<name>.qbc）
+lovejs build main.js
+
+# 运行同名字节码（查找 <可执行文件名>.qbc）
+lovejs
+```
+
+### 发布游戏
+
+可以将游戏打包为可执行文件 + 字节码的形式发布：
+
+```bash
+# 1. 编译游戏
+lovejs build main.js
+
+# 2. 重命名可执行文件和字节码，使其同名
+cp build/bin/lovejs mygame
+cp dist/main.qbc mygame.qbc
+
+# 3. 运行 - 自动加载 mygame.qbc
+./mygame
 ```
 
 ## 架构概览
@@ -74,24 +109,19 @@ main.js (你的游戏代码)
 
 查看 `examples/` 目录获取更多示例代码：
 
-- `examples/hello.js` - 最简单的入门示例
-- `examples/particles.js` - 粒子效果，展示动态图形
-- `examples/game/tetris.js` - 俄罗斯方块游戏
-- `examples/game/gomoku.js` - 五子棋游戏
-
-运行示例：
-
 ```bash
-./build/bin/lovejs examples/hello.js
-./build/bin/lovejs examples/particles.js
-./build/bin/lovejs examples/game/tetris.js
-./build/bin/lovejs examples/game/gomoku.js
+lovejs run examples/hello.js        # 入门示例
+lovejs run examples/particles.js    # 粒子效果
+lovejs run examples/game/tetris.js  # 俄罗斯方块
+lovejs run examples/game/gomoku.js  # 五子棋
+lovejs run examples/game/snap.js    # 贪吃蛇
 ```
 
 ## 技术特性
 
 - **现代图形 API**: 基于 Sokol，支持 Metal/D3D11/OpenGL 硬件加速渲染
 - **轻量级引擎**: 使用 QuickJS，启动快速，内存占用小
+- **字节码编译**: 支持将 JS 编译为字节码，便于发布
 - **ES6 模块**: 支持现代 JavaScript 模块系统
 - **跨平台**: 支持 Windows、macOS、Linux
 - **简单易用**: Love2D 风格的 API，学习成本低

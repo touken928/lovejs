@@ -474,16 +474,196 @@ public:
         }
         return eval(code, name);
     }
+    
+    /**
+     * 运行字节码
+     * @param buf 字节码数据
+     * @param bufLen 字节码长度
+     * @return 成功返回 true
+     */
+    static bool runBytecode(const uint8_t* buf, size_t bufLen) {
+        if (cleanedUp_ || !ctx_) {
+            fprintf(stderr, "Error: JSEngine has been cleaned up\n");
+            return false;
+        }
+        
+        ensureInstalled();
+        
+        // 读取字节码对象
+        JSValue obj = JS_ReadObject(ctx_, buf, bufLen, JS_READ_OBJ_BYTECODE);
+        if (JS_IsException(obj)) {
+            fprintf(stderr, "Error: Failed to read bytecode\n");
+            dumpError();
+            return false;
+        }
+        
+        // 检查是否是模块
+        bool isModule = (JS_VALUE_GET_TAG(obj) == JS_TAG_MODULE);
+        JSModuleDef* moduleDef = nullptr;
+        
+        if (isModule) {
+            // 保存模块定义指针
+            moduleDef = (JSModuleDef*)JS_VALUE_GET_PTR(obj);
+            
+            // 解析模块依赖
+            if (JS_ResolveModule(ctx_, obj) < 0) {
+                fprintf(stderr, "Error: Failed to resolve module\n");
+                dumpError();
+                return false;
+            }
+        }
+        
+        // 执行字节码（注意：JS_EvalFunction 会消费 obj）
+        JSValue result = JS_EvalFunction(ctx_, obj);
+        if (JS_IsException(result)) {
+            fprintf(stderr, "Error: Failed to evaluate bytecode\n");
+            dumpError();
+            return false;
+        }
+        JS_FreeValue(ctx_, result);
+        
+        // 如果是模块，获取命名空间并注册导出到全局
+        if (isModule && moduleDef) {
+            JSValue moduleNS = JS_GetModuleNamespace(ctx_, moduleDef);
+            if (!JS_IsException(moduleNS)) {
+                registerModuleExportsToGlobal(moduleNS);
+                JS_FreeValue(ctx_, moduleNS);
+            }
+        }
+        
+        return true;
+    }
+    
+    /**
+     * 编译结果
+     */
+    struct CompileResult {
+        bool success = false;
+        std::string error;
+        std::vector<uint8_t> bytecode;
+    };
+    
+    /**
+     * 编译 JS 代码为字节码（不执行）
+     * @param code JS 源代码
+     * @param filename 文件名（用于错误信息）
+     * @return 编译结果，包含字节码或错误信息
+     */
+    static CompileResult compile(const std::string& code, const std::string& filename) {
+        CompileResult result;
+        
+        // 创建独立的运行时用于编译
+        JSRuntime* rt = JS_NewRuntime();
+        if (!rt) {
+            result.error = "Failed to create JS runtime";
+            return result;
+        }
+        
+        JSContext* ctx = JS_NewContext(rt);
+        if (!ctx) {
+            result.error = "Failed to create JS context";
+            JS_FreeRuntime(rt);
+            return result;
+        }
+        
+        // 设置模块加载器（用于处理依赖）
+        JS_SetModuleLoaderFunc(rt, nullptr, compileModuleLoader, nullptr);
+        
+        // 编译为字节码（不执行）
+        JSValue obj = JS_Eval(ctx, code.c_str(), code.size(), filename.c_str(),
+                              JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+        
+        if (JS_IsException(obj)) {
+            JSValue ex = JS_GetException(ctx);
+            const char* msg = JS_ToCString(ctx, ex);
+            result.error = msg ? msg : "Unknown compile error";
+            if (msg) JS_FreeCString(ctx, msg);
+            JS_FreeValue(ctx, ex);
+            JS_FreeContext(ctx);
+            JS_FreeRuntime(rt);
+            return result;
+        }
+        
+        // 序列化字节码
+        size_t outSize = 0;
+        uint8_t* outBuf = JS_WriteObject(ctx, &outSize, obj, JS_WRITE_OBJ_BYTECODE);
+        JS_FreeValue(ctx, obj);
+        
+        if (!outBuf) {
+            result.error = "Failed to serialize bytecode";
+            JS_FreeContext(ctx);
+            JS_FreeRuntime(rt);
+            return result;
+        }
+        
+        // 复制字节码到 vector
+        result.bytecode.assign(outBuf, outBuf + outSize);
+        result.success = true;
+        
+        js_free(ctx, outBuf);
+        JS_FreeContext(ctx);
+        JS_FreeRuntime(rt);
+        
+        return result;
+    }
 
 private:
     inline static JSRuntime* rt_ = nullptr;
     inline static JSContext* ctx_ = nullptr;
     inline static std::unique_ptr<JSModule> global_;
-    inline static bool installed_ = false;  // 确保只安装一次
-    inline static std::unordered_map<JSModuleDef*, JSModule*> modData_;  // 模块映射
-    inline static std::unordered_map<std::string, JSModuleDef*> jsModuleCache_;  // JS 模块缓存
-    inline static bool cleanedUp_ = false;  // 清理状态标志
-    inline static std::function<void(const std::string&)> errorCallback_;  // 错误回调
+    inline static bool installed_ = false;
+    inline static std::unordered_map<JSModuleDef*, JSModule*> modData_;
+    inline static std::unordered_map<std::string, JSModuleDef*> jsModuleCache_;
+    inline static bool cleanedUp_ = false;
+    inline static std::function<void(const std::string&)> errorCallback_;
+    
+    /**
+     * 编译时模块加载器 - 为原生模块创建 stub
+     */
+    static JSModuleDef* compileModuleLoader(JSContext* ctx, const char* moduleName, void* opaque) {
+        (void)opaque;
+        
+        // 尝试加载 JS 文件
+        std::string path = moduleName;
+        if (path.find(".js") == std::string::npos) path += ".js";
+        
+        std::ifstream f(path);
+        if (f) {
+            std::stringstream buf;
+            buf << f.rdbuf();
+            std::string code = buf.str();
+            
+            JSValue compiled = JS_Eval(ctx, code.c_str(), code.size(), moduleName,
+                JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+            if (!JS_IsException(compiled)) {
+                return (JSModuleDef*)JS_VALUE_GET_PTR(compiled);
+            }
+        }
+        
+        // 对于原生模块，创建空的 stub 模块
+        JSModuleDef* m = JS_NewCModule(ctx, moduleName, [](JSContext*, JSModuleDef*) -> int {
+            return 0;
+        });
+        
+        if (!m) {
+            JS_ThrowReferenceError(ctx, "could not load module '%s'", moduleName);
+            return nullptr;
+        }
+        
+        // 为 graphics 模块添加导出声明
+        if (strcmp(moduleName, "graphics") == 0) {
+            const char* exports[] = {
+                "setWindow", "clear", "present", "setColor", 
+                "circle", "rectangle", "line", "print",
+                "getWidth", "getHeight"
+            };
+            for (const char* name : exports) {
+                JS_AddModuleExport(ctx, m, name);
+            }
+        }
+        
+        return m;
+    }
     
     //=========================================================================
     // 参数转换辅助函数
@@ -749,5 +929,36 @@ private:
         } else {
             fprintf(stderr, "%s\n", errorMsg.c_str());
         }
+    }
+    
+    /**
+     * 将模块导出的函数注册到全局对象
+     * 动态遍历模块命名空间的所有导出
+     */
+    static void registerModuleExportsToGlobal(JSValue moduleNS) {
+        if (JS_IsUndefined(moduleNS) || JS_IsException(moduleNS)) {
+            return;
+        }
+        
+        JSValue global = JS_GetGlobalObject(ctx_);
+        
+        // 获取模块命名空间的所有属性名
+        JSPropertyEnum* props = nullptr;
+        uint32_t propCount = 0;
+        
+        if (JS_GetOwnPropertyNames(ctx_, &props, &propCount, moduleNS, 
+                                   JS_GPN_STRING_MASK | JS_GPN_ENUM_ONLY) == 0) {
+            for (uint32_t i = 0; i < propCount; i++) {
+                JSValue val = JS_GetProperty(ctx_, moduleNS, props[i].atom);
+                if (!JS_IsException(val)) {
+                    // 将导出绑定到全局对象
+                    JS_SetProperty(ctx_, global, props[i].atom, JS_DupValue(ctx_, val));
+                }
+                JS_FreeValue(ctx_, val);
+            }
+            JS_FreePropertyEnum(ctx_, props, propCount);
+        }
+        
+        JS_FreeValue(ctx_, global);
     }
 };

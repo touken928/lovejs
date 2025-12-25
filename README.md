@@ -6,6 +6,7 @@ A lightweight 2D game engine for JavaScript, inspired by [LÖVE](https://love2d.
 
 - Love2D-style callback API
 - ES6 module support
+- Bytecode compilation for distribution
 - Sokol-based rendering with modern graphics pipeline (Metal/D3D11/OpenGL)
 - Keyboard, mouse, and wheel input
 - Built-in text rendering
@@ -40,11 +41,7 @@ export function draw() {
     present();
 }
 
-export function keypressed(key) {
-    if (key === 'escape') {
-        // Handle escape key
-    }
-}
+export function keypressed(key) {}
 export function keyreleased(key) {}
 export function mousepressed(x, y, button) {}
 export function mousereleased(x, y, button) {}
@@ -67,7 +64,7 @@ export function wheelmoved(x, y) {}
 
 ```bash
 # Clone the repository with submodules
-git clone --recursive --depth 1 https://github.com/touken928/lovejs.git
+git clone --recursive --depth 1 https://github.com/user/lovejs.git
 cd lovejs
 
 # Configure and build (static linking by default)
@@ -75,19 +72,39 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j8
 ```
 
-## Run
+## CLI Usage
 
 ```bash
-# Run the default main.js
-./build/bin/lovejs
+# Show help
+lovejs help
 
-# Run a specific JavaScript file
-./build/bin/lovejs examples/hello.js
+# Run a JavaScript file
+lovejs run main.js
 
-# Run example games
-./build/bin/lovejs examples/game/tetris.js
-./build/bin/lovejs examples/game/gomoku.js
-./build/bin/lovejs examples/game/snap.js
+# Run a bytecode file
+lovejs run game.qbc
+
+# Compile JS to bytecode (output to ./dist/<name>.qbc)
+lovejs build main.js
+
+# Run bundled bytecode (looks for <executable_name>.qbc)
+lovejs
+```
+
+### Distribution
+
+You can distribute your game as a single executable + bytecode file:
+
+```bash
+# 1. Compile your game
+lovejs build main.js
+
+# 2. Rename executable and bytecode to match
+cp build/bin/lovejs mygame
+cp dist/main.qbc mygame.qbc
+
+# 3. Run - it automatically loads mygame.qbc
+./mygame
 ```
 
 ## Rendering Backend
@@ -98,23 +115,17 @@ LoveJS uses **Sokol** as its rendering backend:
 - **Windows**: Direct3D 11
 - **Linux**: OpenGL 3.3 Core
 
-Sokol provides:
-- Lightweight, modern graphics API
-- Excellent cross-platform support
-- Batch rendering for better performance
-- Minimal dependencies
-
-See [SOKOL_SUMMARY.md](./SOKOL_SUMMARY.md) for technical details.
-
 ## Examples
 
 The `examples/` directory contains several demo programs:
 
-- `examples/hello.js` - Basic "Hello World" example
-- `examples/particles.js` - Particle system demonstration
-- `examples/game/tetris.js` - Full Tetris implementation
-- `examples/game/gomoku.js` - Five-in-a-row game (Gomoku)
-- `examples/game/snap.js` - Snake game
+```bash
+lovejs run examples/hello.js
+lovejs run examples/particles.js
+lovejs run examples/game/tetris.js
+lovejs run examples/game/gomoku.js
+lovejs run examples/game/snap.js
+```
 
 ## Dependencies
 
