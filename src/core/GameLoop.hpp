@@ -58,6 +58,21 @@ public:
         
         return createAppDesc();
     }
+    
+    /**
+     * 设置游戏循环并返回 Sokol 应用配置（内存中的字节码）
+     * @param data 字节码数据指针
+     * @param size 字节码数据大小
+     * @return Sokol 应用描述符
+     */
+    static sapp_desc setupFromMemory(const uint8_t* data, size_t size) {
+        bytecodeMode_ = true;
+        initializeRenderer();
+        initializeModules();
+        loadBytecodeFromMemory(data, size);
+        
+        return createAppDesc();
+    }
 
 private:
     //=========================================================================
@@ -130,6 +145,23 @@ private:
         // 加载字节码模块
         if (!loadBytecodeModule()) {
             std::cerr << "Error: failed to load bytecode " << qbcFile << std::endl;
+            exit(-1);
+        }
+        
+        // 预先调用 load 回调
+        callLoadCallback();
+    }
+    
+    /**
+     * 从内存加载字节码
+     */
+    static void loadBytecodeFromMemory(const uint8_t* data, size_t size) {
+        // 复制字节码数据
+        bytecodeData_.assign(data, data + size);
+        
+        // 加载字节码模块
+        if (!loadBytecodeModule()) {
+            std::cerr << "Error: failed to load embedded bytecode" << std::endl;
             exit(-1);
         }
         

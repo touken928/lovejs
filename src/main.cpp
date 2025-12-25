@@ -2,10 +2,10 @@
  * LoveJS CLI - 命令行工具
  * 
  * 用法:
- *   lovejs                    - 运行同名 .qbc 文件 (lovejs.qbc)
  *   lovejs run <file.js>      - 运行 JS 文件
  *   lovejs run <file.qbc>     - 运行编译后的字节码文件
  *   lovejs build <file.js>    - 编译 JS 文件到 ./dist/<name>.qbc
+ *   lovejs embed <file.qbc>   - 将字节码嵌入到可执行文件，生成独立程序
  */
 
 #include <sokol_app.h>
@@ -14,6 +14,7 @@
 #include <iostream>
 #include <fstream>
 #include <filesystem>
+#include <cstring>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -75,15 +76,57 @@ static bool writeBinaryFile(const fs::path& path, const std::vector<uint8_t>& da
 }
 
 //=============================================================================
+// 嵌入字节码支持
+//=============================================================================
+
+// 嵌入数据的尾部结构 (16 bytes):
+// [8 bytes: magic "LOVEJSBC"] [4 bytes: bytecode size] [4 bytes: reserved]
+static constexpr char EMBED_MAGIC[8] = {'L', 'O', 'V', 'E', 'J', 'S', 'B', 'C'};
+static constexpr size_t EMBED_FOOTER_SIZE = 16;
+
+struct EmbedFooter {
+    char magic[8];
+    uint32_t bytecodeSize;
+    uint32_t reserved;
+};
+
+static std::vector<uint8_t> readEmbeddedBytecode() {
+    fs::path exePath = getExecutablePath();
+    std::ifstream f(exePath, std::ios::binary | std::ios::ate);
+    if (!f) return {};
+    
+    auto fileSize = static_cast<size_t>(f.tellg());
+    if (fileSize < EMBED_FOOTER_SIZE) return {};
+    
+    // 读取尾部
+    f.seekg(-static_cast<std::streamoff>(EMBED_FOOTER_SIZE), std::ios::end);
+    EmbedFooter footer;
+    f.read(reinterpret_cast<char*>(&footer), sizeof(footer));
+    
+    // 检查 magic
+    if (std::memcmp(footer.magic, EMBED_MAGIC, 8) != 0) return {};
+    
+    // 验证大小
+    if (footer.bytecodeSize == 0 || footer.bytecodeSize > fileSize - EMBED_FOOTER_SIZE) return {};
+    
+    // 读取字节码
+    f.seekg(-static_cast<std::streamoff>(EMBED_FOOTER_SIZE + footer.bytecodeSize), std::ios::end);
+    std::vector<uint8_t> bytecode(footer.bytecodeSize);
+    f.read(reinterpret_cast<char*>(bytecode.data()), footer.bytecodeSize);
+    
+    return bytecode;
+}
+
+//=============================================================================
 // 命令处理
 //=============================================================================
 
 static void printUsage(const char* progName) {
     std::cout << "LoveJS - JavaScript Game Engine\n\n"
               << "Usage:\n"
-              << "  " << progName << "                     Run bundled bytecode (<name>.qbc)\n"
               << "  " << progName << " run <file.js|qbc>   Run JS or bytecode file\n"
               << "  " << progName << " build <file.js>     Compile JS to ./dist/<name>.qbc\n"
+              << "  " << progName << " embed <file.qbc>    Embed bytecode into standalone executable\n"
               << "  " << progName << " help                Show this help\n"
               << std::endl;
 }
@@ -123,6 +166,81 @@ static int cmdBuild(const fs::path& inputPath) {
     return 0;
 }
 
+static int cmdEmbed(const fs::path& qbcPath) {
+    if (!fs::exists(qbcPath)) {
+        std::cerr << "Error: File not found: " << qbcPath << std::endl;
+        return 1;
+    }
+    
+    if (qbcPath.extension() != ".qbc") {
+        std::cerr << "Error: Expected .qbc file, got: " << qbcPath << std::endl;
+        return 1;
+    }
+    
+    // 读取字节码
+    std::vector<uint8_t> bytecode = readBinaryFile(qbcPath);
+    if (bytecode.empty()) {
+        std::cerr << "Error: Cannot read bytecode file: " << qbcPath << std::endl;
+        return 1;
+    }
+    
+    // 读取当前可执行文件
+    fs::path exePath = getExecutablePath();
+    std::vector<uint8_t> exeData = readBinaryFile(exePath);
+    if (exeData.empty()) {
+        std::cerr << "Error: Cannot read executable: " << exePath << std::endl;
+        return 1;
+    }
+    
+    // 检查当前可执行文件是否已经嵌入了字节码，如果是则去掉
+    if (exeData.size() >= EMBED_FOOTER_SIZE) {
+        EmbedFooter* existingFooter = reinterpret_cast<EmbedFooter*>(
+            exeData.data() + exeData.size() - EMBED_FOOTER_SIZE);
+        if (std::memcmp(existingFooter->magic, EMBED_MAGIC, 8) == 0) {
+            // 去掉已嵌入的数据
+            size_t originalSize = exeData.size() - EMBED_FOOTER_SIZE - existingFooter->bytecodeSize;
+            exeData.resize(originalSize);
+        }
+    }
+    
+    // 输出路径：qbc 同目录，文件名为 qbc 的 stem
+    fs::path outputPath = qbcPath.parent_path() / qbcPath.stem();
+#ifdef _WIN32
+    outputPath.replace_extension(".exe");
+#endif
+    
+    // 构建新的可执行文件：原始exe + 字节码 + footer
+    std::vector<uint8_t> outputData;
+    outputData.reserve(exeData.size() + bytecode.size() + EMBED_FOOTER_SIZE);
+    outputData.insert(outputData.end(), exeData.begin(), exeData.end());
+    outputData.insert(outputData.end(), bytecode.begin(), bytecode.end());
+    
+    // 添加 footer
+    EmbedFooter footer;
+    std::memcpy(footer.magic, EMBED_MAGIC, 8);
+    footer.bytecodeSize = static_cast<uint32_t>(bytecode.size());
+    footer.reserved = 0;
+    
+    const uint8_t* footerBytes = reinterpret_cast<const uint8_t*>(&footer);
+    outputData.insert(outputData.end(), footerBytes, footerBytes + sizeof(footer));
+    
+    // 写入文件
+    if (!writeBinaryFile(outputPath, outputData)) {
+        std::cerr << "Error: Cannot write output file: " << outputPath << std::endl;
+        return 1;
+    }
+    
+    // 设置可执行权限 (Unix)
+#ifndef _WIN32
+    fs::permissions(outputPath, fs::perms::owner_exec | fs::perms::group_exec | fs::perms::others_exec,
+                    fs::perm_options::add);
+#endif
+    
+    std::cout << "Embedded: " << qbcPath.string() << " -> " << outputPath.string()
+              << " (" << outputData.size() << " bytes)" << std::endl;
+    return 0;
+}
+
 static int cmdRun(const fs::path& inputPath) {
     if (!fs::exists(inputPath)) {
         std::cerr << "Error: File not found: " << inputPath << std::endl;
@@ -141,6 +259,14 @@ static int cmdRun(const fs::path& inputPath) {
 }
 
 static int cmdRunBundled() {
+    // 首先检查是否有嵌入的字节码
+    std::vector<uint8_t> embedded = readEmbeddedBytecode();
+    if (!embedded.empty()) {
+        sapp_desc desc = GameLoop::setupFromMemory(embedded.data(), embedded.size());
+        sapp_run(&desc);
+        return 0;
+    }
+    
     fs::path exePath = getExecutablePath();
     fs::path exeDir = exePath.parent_path();
     std::string exeName = exePath.stem().string();
@@ -190,6 +316,16 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         return cmdBuild(argv[2]);
+    }
+    
+    // embed 命令
+    if (cmd == "embed") {
+        if (argc < 3) {
+            std::cerr << "Error: Missing input file\n"
+                      << "Usage: " << argv[0] << " embed <file.qbc>" << std::endl;
+            return 1;
+        }
+        return cmdEmbed(argv[2]);
     }
     
     // run 命令

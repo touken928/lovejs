@@ -87,24 +87,23 @@ lovejs run game.qbc
 # Compile JS to bytecode (output to ./dist/<name>.qbc)
 lovejs build main.js
 
-# Run bundled bytecode (looks for <executable_name>.qbc)
-lovejs
+# Embed bytecode into standalone executable
+lovejs embed dist/main.qbc
 ```
 
 ### Distribution
 
-You can distribute your game as a single executable + bytecode file:
+You can distribute your game as a single standalone executable:
 
 ```bash
-# 1. Compile your game
+# 1. Compile your game to bytecode
 lovejs build main.js
 
-# 2. Rename executable and bytecode to match
-cp build/bin/lovejs mygame
-cp dist/main.qbc mygame.qbc
+# 2. Embed bytecode into executable (generates dist/main)
+lovejs embed dist/main.qbc
 
-# 3. Run - it automatically loads mygame.qbc
-./mygame
+# 3. Run the standalone executable
+./dist/main
 ```
 
 ## Rendering Backend
