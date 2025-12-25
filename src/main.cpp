@@ -15,7 +15,9 @@
 #include <fstream>
 #include <filesystem>
 
-#ifdef __APPLE__
+#ifdef _WIN32
+#include <windows.h>
+#elif defined(__APPLE__)
 #include <mach-o/dyld.h>
 #endif
 
