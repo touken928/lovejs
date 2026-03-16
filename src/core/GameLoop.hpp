@@ -244,15 +244,29 @@ private:
     }
     
     /**
-     * 清理回调 - 释放资源
+     * 清理回调 - 释放所有资源
+     *
+     * 资源释放顺序很重要：
+     * 1. 纹理缓存 - 释放 GPU 纹理资源
+     * 2. 渲染器 - 释放 shader 等渲染资源
+     * 3. Sokol - 清理图形状态
+     * 4. JS 引擎 - 清理 JS runtime 和对象
      */
     static void cleanup_cb() {
-        // 先清理图形资源（Sokol）
+        // 1. 清理纹理缓存
+        Graphics::instance().clearTextureCache();
+
+        // 2. 清理渲染器资源（包括 shader）
+        if (renderer_) {
+            renderer_->destroyWindow();
+        }
+
+        // 3. 清理图形资源（Sokol）
         sg_shutdown();
-        
-        // 再显式清理 JS 引擎
+
+        // 4. 清理 JS 引擎
         JSEngine::cleanup();
-        
+
         // 清空静态指针
         renderer_ = nullptr;
         loadCalled_ = false;

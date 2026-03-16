@@ -48,6 +48,16 @@ public:
         }
     }
 
+    // 清理所有纹理缓存
+    void clearTextureCache() {
+        for (auto& [path, handle] : textures_) {
+            if (handle) {
+                renderer().unloadTexture(handle);
+            }
+        }
+        textures_.clear();
+    }
+
 private:
     render::IRenderer* externalRenderer_ = nullptr;
     std::unordered_map<std::string, render::TextureHandle> textures_;

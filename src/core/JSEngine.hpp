@@ -365,33 +365,46 @@ public:
     
     /**
      * 显式清理资源（在程序退出前调用）
+     *
+     * 注意：QuickJS 要求所有 JS_Eval 返回的 JSValue 都要手动释放，
+     * 否则会导致退出时 GC assertion 失败。
+     * 参见: https://github.com/bellard/quickjs/issues/66
      */
     static void cleanup() {
         if (!ctx_ && !rt_) return; // 已经清理过了
-        
-        cleanedUp_ = true;  // 设置清理标志
-        
-        // 清理模块映射
-        modData_.clear();
-        jsModuleCache_.clear();
-        
-        // 运行垃圾回收
-        if (ctx_ && rt_) {
-            JS_RunGC(rt_);
+
+        cleanedUp_ = true;
+
+        // 1. 获取全局对象并清理所有用户添加的属性
+        JSValue global = JS_GetGlobalObject(ctx_);
+        JSPropertyEnum* props = nullptr;
+        uint32_t propCount = 0;
+
+        if (JS_GetOwnPropertyNames(ctx_, &props, &propCount, global,
+                                   JS_GPN_STRING_MASK | JS_GPN_ENUM_ONLY) == 0) {
+            for (uint32_t i = 0; i < propCount; i++) {
+                JS_DeleteProperty(ctx_, global, props[i].atom, JS_PROP_THROW);
+            }
+            JS_FreePropertyEnum(ctx_, props, propCount);
         }
-        
-        // 释放上下文和运行时
+        JS_FreeValue(ctx_, global);
+
+        // 2. 释放 context（QuickJS 会自动清理所有模块和对象）
         if (ctx_) {
             JS_FreeContext(ctx_);
             ctx_ = nullptr;
         }
+
+        // 3. 清理 C++ 侧的数据（在 context 释放之后）
+        jsModuleCache_.clear();
+        modData_.clear();
+        global_.reset();
+
+        // 4. 释放 runtime
         if (rt_) {
             JS_FreeRuntime(rt_);
             rt_ = nullptr;
         }
-        
-        // 清理全局模块
-        global_.reset();
     }
     
     /**
@@ -619,24 +632,29 @@ private:
     
     /**
      * 编译时模块加载器 - 为原生模块创建 stub
+     *
+     * 注意：JS_Eval 返回的 JSValue 必须手动释放，
+     * 否则会导致退出时 GC assertion 失败。
      */
     static JSModuleDef* compileModuleLoader(JSContext* ctx, const char* moduleName, void* opaque) {
         (void)opaque;
-        
+
         // 尝试加载 JS 文件
         std::string path = moduleName;
         if (path.find(".js") == std::string::npos) path += ".js";
-        
+
         std::ifstream f(path);
         if (f) {
             std::stringstream buf;
             buf << f.rdbuf();
             std::string code = buf.str();
-            
+
             JSValue compiled = JS_Eval(ctx, code.c_str(), code.size(), moduleName,
                 JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
             if (!JS_IsException(compiled)) {
-                return (JSModuleDef*)JS_VALUE_GET_PTR(compiled);
+                JSModuleDef* m = (JSModuleDef*)JS_VALUE_GET_PTR(compiled);
+                JS_FreeValue(ctx, compiled);  // 必须释放！参见 https://github.com/bellard/quickjs/issues/66
+                return m;
             }
         }
         
@@ -792,10 +810,9 @@ private:
         if (JS_IsException(compiled)) {
             return nullptr;
         }
-        
+
         JSModuleDef* moduleDef = (JSModuleDef*)JS_VALUE_GET_PTR(compiled);
-        // 注意：不能 FreeValue，因为 moduleDef 需要保持有效
-        // compiled 的生命周期由 QuickJS 内部管理
+        JS_FreeValue(ctx, compiled);  // 释放 JSValue 引用
         jsModuleCache_[modulePath] = moduleDef;  // 缓存模块
         return moduleDef;
     }
