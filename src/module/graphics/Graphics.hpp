@@ -19,8 +19,6 @@ public:
         instance().renderer_ = renderer;
     }
 
-    bool isBound() const { return renderer_ != nullptr; }
-
     // Window/query facade
     bool setWindow(const std::string& title, int width, int height) {
         return renderer().createWindow(title, width, height);
@@ -47,19 +45,19 @@ public:
         auto h = getTexture(id);
         if (h) renderer().drawTexture(h, (float)x, (float)y, (float)rot, (float)sx, (float)sy);
     }
-    void print(const std::string& text, double x, double y) { drawText(text, (int)x, (int)y); }
-    
-    void drawText(const std::string& text, int x, int y) {
+    void print(const std::string& text, double x, double y) {
+        int ix = static_cast<int>(x);
+        int iy = static_cast<int>(y);
         for (char c : text) {
             if (auto* bmp = Font::getBitmap(c)) {
                 for (int row = 0; row < Font::CHAR_HEIGHT; row++) {
                     for (int col = 0; col < Font::CHAR_WIDTH; col++) {
                         if (bmp[row] & (1 << col))
-                            renderer().drawPoint((float)(x + col), (float)(y + row));
+                            renderer().drawPoint((float)(ix + col), (float)(iy + row));
                     }
                 }
             }
-            x += Font::CHAR_WIDTH + Font::CHAR_SPACING;
+            ix += Font::CHAR_WIDTH + Font::CHAR_SPACING;
         }
     }
 
