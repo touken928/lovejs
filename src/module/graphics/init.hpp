@@ -37,8 +37,8 @@
  * 颜色常量:
  *   WHITE, BLACK, RED, GREEN, BLUE, YELLOW, CYAN, MAGENTA: [number, number, number, number]
  */
-inline void initGraphicsModule() {
-    auto& g = JSEngine::global().module("graphics");
+inline void initGraphicsModule(JSModule& root) {
+    auto& g = root.module("graphics");
     
     // 窗口
     g.func("setWindow", [](const std::string& t, int w, int h) {

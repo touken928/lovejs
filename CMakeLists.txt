@@ -38,8 +38,10 @@ elseif(UNIX)
 endif()
 
 # 第三方库
-include(cmake/quickjs.cmake)
 include(cmake/sokol.cmake)
+
+# slowjs (JS engine wrapper; brings its own quickjs)
+add_subdirectory(third_party/slowjs)
 
 # 源文件
 set(LOVEJS_SOURCES
@@ -56,7 +58,7 @@ target_include_directories(lovejs PRIVATE
 
 # 链接第三方库
 target_link_libraries(lovejs PRIVATE
-    quickjs
+    slowjs
     sokol
 )
 

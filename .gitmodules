@@ -1,7 +1,6 @@
-[submodule "third_party/quickjs"]
-	path = third_party/quickjs
-	url = https://github.com/bellard/quickjs.git
-
 [submodule "third_party/sokol"]
 	path = third_party/sokol
 	url = https://github.com/floooh/sokol.git
+[submodule "third_party/slowjs"]
+	path = third_party/slowjs
+	url = https://github.com/touken928/slowjs

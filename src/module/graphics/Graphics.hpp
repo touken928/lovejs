@@ -3,6 +3,7 @@
 #include "Font.hpp"
 #include <memory>
 #include <unordered_map>
+#include <stdexcept>
 
 /**
  * Graphics - 图形模块核心

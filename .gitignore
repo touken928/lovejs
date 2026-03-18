@@ -1,6 +1,7 @@
 # Build
 build/
 dist/
+.tmp/
 .xmake/
 cmake-build-*/
 CMakeFiles/
