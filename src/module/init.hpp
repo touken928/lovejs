@@ -1,6 +1,8 @@
 #pragma once
 #include "graphics/init.hpp"
 
-inline void initAllModules(JSModule& root) {
-    initGraphicsModule(root);
+inline slowjs::PluginRegistry defaultPlugins() {
+    slowjs::PluginRegistry r;
+    r.emplace<GraphicsPlugin>();
+    return r;
 }

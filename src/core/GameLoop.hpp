@@ -115,7 +115,9 @@ private:
      */
     static void initializeModules(lovejs::GameApp& app) {
         app.engine.initialize();
-        initAllModules(app.engine.root());
+        // Install native modules via slowjs plugin registry
+        auto plugins = defaultPlugins();
+        plugins.installAll(app.engine, app.engine.root());
     }
     
     /**
