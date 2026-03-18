@@ -1,5 +1,5 @@
 #pragma once
-#include "JSEngine.hpp"
+#include <slowjs/JSEngine.hpp>
 #include "../render/SokolRenderer.hpp"
 #include "../module/graphics/Graphics.hpp"
 #include "../module/init.hpp"
@@ -16,7 +16,7 @@
 namespace lovejs {
 struct GameApp {
     render::SokolRenderer renderer;
-    JSEngine engine;
+    slowjs::JSEngine engine;
     std::vector<uint8_t> bytecodeData;
     bool loadCalled = false;
     bool bytecodeMode = false;

@@ -1,5 +1,4 @@
 #pragma once
-#include "../../core/JSEngine.hpp"
 #include <slowjs/Plugin.hpp>
 #include "Graphics.hpp"
 

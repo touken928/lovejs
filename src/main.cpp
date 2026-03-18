@@ -10,8 +10,8 @@
 
 #include <sokol_app.h>
 #include "core/GameLoop.hpp"
-#include "core/JSEngine.hpp"
 #include "core/Embed.hpp"
+#include <slowjs/JSEngine.hpp>
 #include <iostream>
 
 namespace fs = std::filesystem;
@@ -42,7 +42,7 @@ static int cmdBuild(const fs::path& inputPath) {
         return 1;
     }
     
-    auto result = JSEngine::compile(code, inputPath.string());
+    auto result = slowjs::JSEngine::compile(code, inputPath.string());
     if (!result.success) {
         std::cerr << "Compile error: " << result.error << std::endl;
         return 1;
