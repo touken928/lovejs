@@ -50,11 +50,11 @@ public:
      * @return Sokol 应用描述符
      */
     static sapp_desc setup(const char* jsFile) {
-        ensureApp();
-        app_->bytecodeMode = false;
-        initializeRenderer(*app_);
-        initializeModules(*app_);
-        loadJSFile(*app_, jsFile);
+        auto& a = app();
+        a.bytecodeMode = false;
+        initializeRenderer(a);
+        initializeModules(a);
+        loadJSFile(a, jsFile);
         
         return createAppDesc();
     }
@@ -65,11 +65,11 @@ public:
      * @return Sokol 应用描述符
      */
     static sapp_desc setupBytecode(const char* qbcFile) {
-        ensureApp();
-        app_->bytecodeMode = true;
-        initializeRenderer(*app_);
-        initializeModules(*app_);
-        loadBytecodeFile(*app_, qbcFile);
+        auto& a = app();
+        a.bytecodeMode = true;
+        initializeRenderer(a);
+        initializeModules(a);
+        loadBytecodeFile(a, qbcFile);
         
         return createAppDesc();
     }
@@ -81,11 +81,11 @@ public:
      * @return Sokol 应用描述符
      */
     static sapp_desc setupFromMemory(const uint8_t* data, size_t size) {
-        ensureApp();
-        app_->bytecodeMode = true;
-        initializeRenderer(*app_);
-        initializeModules(*app_);
-        loadBytecodeFromMemory(*app_, data, size);
+        auto& a = app();
+        a.bytecodeMode = true;
+        initializeRenderer(a);
+        initializeModules(a);
+        loadBytecodeFromMemory(a, data, size);
         
         return createAppDesc();
     }
@@ -98,9 +98,9 @@ private:
     /**
      * 初始化渲染器
      */
-    static void ensureApp() {
-        static lovejs::GameApp app;
-        app_ = &app;
+    static lovejs::GameApp& app() {
+        static lovejs::GameApp a;
+        return a;
     }
 
     static void initializeRenderer(lovejs::GameApp& app) {
@@ -194,19 +194,19 @@ private:
      * 创建 Sokol 应用描述符
      */
     static sapp_desc createAppDesc() {
-        ensureApp();
+        auto& a = app();
         // 保存窗口标题到静态变量，避免指针失效（Sokol 要求 const char* 生命周期长）
         static std::string windowTitle;
-        windowTitle = app_->renderer.getTitle();
+        windowTitle = a.renderer.getTitle();
         
         sapp_desc desc = {};
         desc.init_cb = init_cb;
         desc.frame_cb = frame_cb;
         desc.cleanup_cb = cleanup_cb;
         desc.event_cb = event_cb;
-        desc.user_data = app_;
-        desc.width = app_->renderer.getWidth();
-        desc.height = app_->renderer.getHeight();
+        desc.user_data = &a;
+        desc.width = a.renderer.getWidth();
+        desc.height = a.renderer.getHeight();
         desc.window_title = windowTitle.c_str();
         desc.logger.func = slog_func;
         desc.fullscreen = false;
@@ -496,9 +496,4 @@ private:
         }
     }
     
-    //=========================================================================
-    // 静态成员变量
-    //=========================================================================
-    
-    inline static lovejs::GameApp* app_ = nullptr;
 };
