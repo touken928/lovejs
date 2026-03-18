@@ -14,6 +14,7 @@ A lightweight 2D game engine for JavaScript, inspired by [LÖVE](https://love2d.
 - Texture loading support
 - Matrix transformations (translate, rotate, scale)
 - Cross-platform (macOS, Windows, Linux)
+- Modular native subsystems via `slowjs` plugins and typed host services
 
 ## Quick Start
 
@@ -63,10 +64,6 @@ export function wheelmoved(x, y) {}
 ### Build Steps
 
 ```bash
-# Clone the repository with submodules
-git clone --recursive --depth 1 https://github.com/user/lovejs.git
-cd lovejs
-
 # Configure and build (static linking by default)
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j8

@@ -9,7 +9,7 @@
  */
 
 #include <sokol_app.h>
-#include "core/GameLoop.hpp"
+#include "core/AppLoop.hpp"
 #include "core/Embed.hpp"
 #include <slowjs/JSEngine.hpp>
 #include <iostream>
@@ -102,9 +102,9 @@ static int cmdRun(const fs::path& inputPath) {
     
     sapp_desc desc;
     if (inputPath.extension() == ".qbc") {
-        desc = GameLoop::setupBytecode(inputPath.string().c_str());
+        desc = AppLoop::setupBytecode(inputPath.string().c_str());
     } else {
-        desc = GameLoop::setup(inputPath.string().c_str());
+        desc = AppLoop::setup(inputPath.string().c_str());
     }
     
     sapp_run(&desc);
@@ -115,7 +115,7 @@ static int cmdRunBundled() {
     // 首先检查是否有嵌入的字节码
     std::vector<uint8_t> embedded = Embed::readEmbeddedBytecode();
     if (!embedded.empty()) {
-        sapp_desc desc = GameLoop::setupFromMemory(embedded.data(), embedded.size());
+        sapp_desc desc = AppLoop::setupFromMemory(embedded.data(), embedded.size());
         sapp_run(&desc);
         return 0;
     }

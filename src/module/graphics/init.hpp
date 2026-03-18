@@ -40,58 +40,63 @@
 class GraphicsPlugin final : public slowjs::IEnginePlugin {
 public:
     const char* name() const override { return "graphics"; }
-    void install(slowjs::JSEngine& /*engine*/, slowjs::JSModule& root) override {
+    void install(slowjs::JSEngine& engine, slowjs::JSModule& root) override {
+        // Bind renderer from typed host storage (set by AppLoop) into Graphics facade
+        if (auto* renderer = engine.host<render::IRenderer>()) {
+            Graphics::bindRenderer(renderer);
+        }
+
         auto& g = root.module("graphics");
 
         // Window
         g.func("setWindow", [](const std::string& t, int w, int h) {
-            Graphics::instance().renderer().createWindow(t, w, h);
+            Graphics::instance().setWindow(t, w, h);
         });
         g.func("getWindowSize", []() {
-            auto s = Graphics::instance().renderer().getWindowSize();
-            return std::vector<double>{(double)s.width, (double)s.height};
+            auto [w, h] = Graphics::instance().windowSize();
+            return std::vector<double>{(double)w, (double)h};
         });
 
         // Render
         g.func("clear", [](double r, double g, double b, double a) {
-            Graphics::instance().renderer().clear({(float)r, (float)g, (float)b, (float)a});
+            Graphics::instance().clear((float)r, (float)g, (float)b, (float)a);
         });
-        g.func("present", []() { Graphics::instance().renderer().present(); });
+        g.func("present", []() { Graphics::instance().present(); });
         g.func("setColor", [](double r, double g, double b, double a) {
-            Graphics::instance().renderer().setColor({(float)r, (float)g, (float)b, (float)a});
+            Graphics::instance().setColor((float)r, (float)g, (float)b, (float)a);
         });
 
         // Shapes
-        g.func("point", [](double x, double y) { Graphics::instance().renderer().drawPoint(x, y); });
+        g.func("point", [](double x, double y) { Graphics::instance().point(x, y); });
         g.func("line", [](double x1, double y1, double x2, double y2) {
-            Graphics::instance().renderer().drawLine(x1, y1, x2, y2);
+            Graphics::instance().line(x1, y1, x2, y2);
         });
         g.func("rectangle", [](double x, double y, double w, double h, bool filled) {
-            Graphics::instance().renderer().drawRect({(float)x, (float)y, (float)w, (float)h}, filled);
+            Graphics::instance().rectangle(x, y, w, h, filled);
         });
         g.func("circle", [](double x, double y, double radius, bool filled) {
-            Graphics::instance().renderer().drawCircle(x, y, radius, filled);
+            Graphics::instance().circle(x, y, radius, filled);
         });
 
         // Textures
         g.func("loadTexture", [](const std::string& path) -> std::string {
-            return Graphics::instance().getTexture(path) ? path : "";
+            // Lazy-loaded by drawTexture; return id for compatibility
+            return path;
         });
         g.func("drawTexture", [](const std::string& id, double x, double y, double rot, double sx, double sy) {
-            if (auto h = Graphics::instance().getTexture(id))
-                Graphics::instance().renderer().drawTexture(h, x, y, rot, sx, sy);
+            Graphics::instance().drawTexture(id, x, y, rot, sx, sy);
         });
 
         // Transforms
-        g.func("push", []() { Graphics::instance().renderer().pushMatrix(); });
-        g.func("pop", []() { Graphics::instance().renderer().popMatrix(); });
-        g.func("translate", [](double x, double y) { Graphics::instance().renderer().translate(x, y); });
-        g.func("rotate", [](double a) { Graphics::instance().renderer().rotate(a); });
-        g.func("scale", [](double x, double y) { Graphics::instance().renderer().scale(x, y); });
+        g.func("push", []() { Graphics::instance().push(); });
+        g.func("pop", []() { Graphics::instance().pop(); });
+        g.func("translate", [](double x, double y) { Graphics::instance().translate(x, y); });
+        g.func("rotate", [](double a) { Graphics::instance().rotate(a); });
+        g.func("scale", [](double x, double y) { Graphics::instance().scale(x, y); });
 
         // Text
         g.func("print", [](const std::string& text, double x, double y) {
-            Graphics::instance().drawText(text, (int)x, (int)y);
+            Graphics::instance().print(text, x, y);
         });
 
         // Constants
