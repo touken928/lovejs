@@ -15,6 +15,7 @@ A lightweight 2D game engine for JavaScript, inspired by [LÖVE](https://love2d.
 - Matrix transformations (translate, rotate, scale)
 - Cross-platform (macOS, Windows, Linux)
 - Modular native subsystems via `slowjs` plugins and typed host services
+- Asynchronous file I/O via the `fs` module (Promise-based API)
 
 ## Quick Start
 
@@ -121,6 +122,7 @@ lovejs run examples/particles.js
 lovejs run examples/game/tetris.js
 lovejs run examples/game/gomoku.js
 lovejs run examples/game/snap.js
+lovejs run examples/fs_demo.js
 ```
 
 ## Dependencies
@@ -136,6 +138,7 @@ See [docs/](./docs/) for detailed documentation:
 - [Getting Started Guide](./docs/README.md)
 - [Callback System](./docs/Callbacks.md)
 - [Graphics API Reference](./docs/Graphics.md)
+- [Async File I/O](./docs/Fs.md)
 
 ## License
 

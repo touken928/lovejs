@@ -2,6 +2,7 @@
 #include <slowjs/JSEngine.hpp>
 #include "../render/SokolRenderer.hpp"
 #include "../module/init.hpp"
+#include "../module/fs/FsAsync.hpp"
 #include <sokol_app.h>
 #include <sokol_gfx.h>
 #include <sokol_glue.h>
@@ -187,6 +188,8 @@ private:
     static void frame_cb() {
         auto* app = static_cast<lovejs::GameApp*>(sapp_userdata());
         if (!app) return;
+
+        lovejs::fs_async::pumpPromises(app->engine);
 
         auto currentTime = std::chrono::high_resolution_clock::now();
         auto deltaTime = std::chrono::duration<double>(currentTime - app->lastTime).count();
