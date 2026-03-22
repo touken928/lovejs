@@ -54,6 +54,7 @@ add_executable(lovejs ${LOVEJS_SOURCES})
 target_include_directories(lovejs PRIVATE
     ${CMAKE_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/tinytp
 )
 
 # 链接第三方库

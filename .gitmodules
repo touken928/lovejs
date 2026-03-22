@@ -4,3 +4,6 @@
 [submodule "third_party/slowjs"]
 	path = third_party/slowjs
 	url = https://github.com/touken928/slowjs
+[submodule "third_party/tinytp"]
+	path = third_party/tinytp
+	url = https://github.com/touken928/tinytp.git
