@@ -62,6 +62,21 @@ export function wheelmoved(x, y) {}
 - **macOS**: Clang (Xcode Command Line Tools)
 - **Windows**: MinGW-w64 or Clang (MSVC is not supported)
 
+### Clone the repository
+
+Clone this repository and its submodules (Sokol, slowjs, etc.):
+
+```bash
+git clone --recurse-submodules https://github.com/touken928/lovejs.git
+cd lovejs
+```
+
+If you already cloned without submodules, initialize them with:
+
+```bash
+git submodule update --init --recursive
+```
+
 ### Build Steps
 
 ```bash
