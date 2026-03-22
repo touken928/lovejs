@@ -1,103 +1,64 @@
 #pragma once
 
-#include "../../async/TaskSystem.hpp"
+#include "../../async/AsyncRuntime.hpp"
 
 #include <fstream>
-#include <mutex>
+#include <optional>
 #include <string>
-#include <unordered_map>
+#include <vector>
 
 namespace lovejs::fs_async {
 
-struct Result {
-    bool ok = false;
-    std::string data;
-};
+// std::optional<std::string> 约定（与 init.hpp 里 isWrite 配合区分读/写）：
+// - readFile：有值 = 成功（含空文件），无值 = 读失败
+// - writeFile：无值 = 成功，有值 = 失败原因
+using FsData = std::optional<std::string>;
 
-inline std::mutex& resultsMutex() {
-    static std::mutex m;
-    return m;
+inline lovejs::async::AsyncOps<FsData>& fsAsyncOps() {
+    static lovejs::async::AsyncOps<FsData> ops;
+    return ops;
 }
 
-inline std::unordered_map<std::uint64_t, Result>& resultsMap() {
-    static std::unordered_map<std::uint64_t, Result> m;
-    return m;
+inline FsData readFileSync(const std::string& path) {
+    std::ifstream f(path, std::ios::binary);
+    if (!f) return std::nullopt;
+    f.seekg(0, std::ios::end);
+    std::streamsize size = f.tellg();
+    f.seekg(0, std::ios::beg);
+    std::string out;
+    if (size > 0) {
+        out.resize(static_cast<std::size_t>(size));
+        if (!f.read(&out[0], size)) return std::nullopt;
+    }
+    return out;
+}
+
+inline FsData writeFileSync(const std::string& path, const std::string& data) {
+    std::ofstream f(path, std::ios::binary | std::ios::trunc);
+    if (!f) return std::string("Cannot open file for writing: " + path);
+    if (!data.empty())
+        f.write(data.data(), static_cast<std::streamsize>(data.size()));
+    if (!f) return std::string("Failed to write file: " + path);
+    return std::nullopt;
 }
 
 inline std::uint64_t readFileAsync(const std::string& path) {
-    auto& ts = lovejs::async::TaskSystem::instance();
-    lovejs::async::JobId id = ts.enqueue([path](lovejs::async::JobId jobId) {
-        Result r;
-        std::ifstream f(path, std::ios::binary);
-        if (!f) {
-            r.ok = false;
-            r.data = "Cannot open file: " + path;
-        } else {
-            f.seekg(0, std::ios::end);
-            std::streamsize size = f.tellg();
-            f.seekg(0, std::ios::beg);
-            if (size > 0) {
-                r.data.resize(static_cast<std::size_t>(size));
-                if (!f.read(&r.data[0], size)) {
-                    r.ok = false;
-                    r.data = "Failed to read file: " + path;
-                } else {
-                    r.ok = true;
-                }
-            } else {
-                r.ok = true;
-                r.data.clear();
-            }
-        }
-        {
-            std::lock_guard<std::mutex> lock(resultsMutex());
-            resultsMap()[jobId.value] = std::move(r);
-        }
-    });
-    return id.value;
+    return fsAsyncOps().enqueue([path]() { return readFileSync(path); });
 }
 
 inline std::uint64_t writeFileAsync(const std::string& path, const std::string& data) {
-    auto& ts = lovejs::async::TaskSystem::instance();
-    lovejs::async::JobId id = ts.enqueue([path, data](lovejs::async::JobId jobId) {
-        Result r;
-        std::ofstream f(path, std::ios::binary | std::ios::trunc);
-        if (!f) {
-            r.ok = false;
-            r.data = "Cannot open file for writing: " + path;
-        } else {
-            if (!data.empty())
-                f.write(data.data(), static_cast<std::streamsize>(data.size()));
-            r.ok = static_cast<bool>(f);
-            if (!r.ok) r.data = "Failed to write file: " + path;
-        }
-        {
-            std::lock_guard<std::mutex> lock(resultsMutex());
-            resultsMap()[jobId.value] = std::move(r);
-        }
-    });
-    return id.value;
+    return fsAsyncOps().enqueue([path, data]() { return writeFileSync(path, data); });
 }
 
 struct CompletedResult {
     std::uint64_t id;
-    Result result;
+    FsData result;
 };
 
-// Drain completed I/O results (main-thread only).
 inline std::vector<CompletedResult> pumpResults() {
-    auto completed = lovejs::async::TaskSystem::instance().drainCompleted();
-    if (completed.empty()) return {};
-
     std::vector<CompletedResult> out;
-    std::lock_guard<std::mutex> lock(resultsMutex());
-    auto& m = resultsMap();
-    for (auto& cj : completed) {
-        auto it = m.find(cj.id.value);
-        if (it != m.end()) {
-            out.push_back({it->first, std::move(it->second)});
-            m.erase(it);
-        }
+    for (auto& [id, r] : fsAsyncOps().drainReady()) {
+        out.push_back(CompletedResult{id, std::move(r)});
     }
     return out;
 }

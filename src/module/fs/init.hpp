@@ -3,21 +3,18 @@
 #include "FsAsync.hpp"
 
 #include <cstdint>
-#include <mutex>
 #include <unordered_map>
 
 namespace lovejs::fs_async {
 
-// Map JobId -> PromiseHandle, accessed only on the main thread during enqueue
-// and pump, so no mutex is needed beyond the results mutex already in FsAsync.
-inline std::unordered_map<std::uint64_t, slowjs::JSEngine::PromiseHandle>& pendingMap() {
-    static std::unordered_map<std::uint64_t, slowjs::JSEngine::PromiseHandle> m;
-    return m;
-}
+struct PendingPromise {
+    slowjs::JSEngine::PromiseHandle ph;
+    bool isWrite = false;
+};
 
-// Track which jobs are writes (resolve with void) vs reads (resolve with string).
-inline std::unordered_map<std::uint64_t, bool>& writeMap() {
-    static std::unordered_map<std::uint64_t, bool> m;
+// async op id -> promise + read/write 区分（主线程；与 FsAsync::pumpResults 对应）
+inline std::unordered_map<std::uint64_t, PendingPromise>& pendingPromises() {
+    static std::unordered_map<std::uint64_t, PendingPromise> m;
     return m;
 }
 
@@ -25,29 +22,28 @@ inline void pumpPromises(slowjs::JSEngine& engine) {
     auto results = pumpResults();
     if (results.empty()) return;
 
-    auto& pm = pendingMap();
-    auto& wm = writeMap();
+    auto& pending = pendingPromises();
 
     for (auto& cr : results) {
-        auto it = pm.find(cr.id);
-        if (it == pm.end()) continue;
+        auto it = pending.find(cr.id);
+        if (it == pending.end()) continue;
 
-        auto ph = it->second;
-        bool isWrite = false;
-        auto wit = wm.find(cr.id);
-        if (wit != wm.end()) {
-            isWrite = wit->second;
-            wm.erase(wit);
-        }
-        pm.erase(it);
+        const bool isWrite = it->second.isWrite;
+        auto ph = it->second.ph;
+        pending.erase(it);
 
-        if (cr.result.ok) {
-            if (isWrite)
+        if (isWrite) {
+            if (cr.result.has_value()) {
+                engine.rejectPromise(ph, cr.result.value());
+            } else {
                 engine.resolvePromiseVoid(ph);
-            else
-                engine.resolvePromise(ph, cr.result.data);
+            }
         } else {
-            engine.rejectPromise(ph, cr.result.data);
+            if (cr.result.has_value()) {
+                engine.resolvePromise(ph, cr.result.value());
+            } else {
+                engine.rejectPromise(ph, "Failed to read file");
+            }
         }
         engine.freePromise(ph);
     }
@@ -66,16 +62,14 @@ public:
         m.func("readFile", [eng](const std::string& path) -> slowjs::RawJSValue {
             auto ph = eng->createPromise();
             auto id = lovejs::fs_async::readFileAsync(path);
-            lovejs::fs_async::pendingMap()[id] = ph;
-            lovejs::fs_async::writeMap()[id] = false;
+            lovejs::fs_async::pendingPromises()[id] = {ph, false};
             return eng->promiseValue(ph);
         });
 
         m.func("writeFile", [eng](const std::string& path, const std::string& data) -> slowjs::RawJSValue {
             auto ph = eng->createPromise();
             auto id = lovejs::fs_async::writeFileAsync(path, data);
-            lovejs::fs_async::pendingMap()[id] = ph;
-            lovejs::fs_async::writeMap()[id] = true;
+            lovejs::fs_async::pendingPromises()[id] = {ph, true};
             return eng->promiseValue(ph);
         });
     }
