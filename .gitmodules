@@ -1,9 +1,9 @@
-[submodule "third_party/sokol"]
-	path = third_party/sokol
-	url = https://github.com/floooh/sokol.git
-[submodule "third_party/slowjs"]
-	path = third_party/slowjs
-	url = https://github.com/touken928/slowjs
-[submodule "third_party/tinytp"]
-	path = third_party/tinytp
-	url = https://github.com/touken928/tinytp.git
+[submodule "third_party/qjs"]
+	path = third_party/qjs
+	url = https://github.com/touken928/qjs
+[submodule "third_party/googletest"]
+	path = third_party/googletest
+	url = https://github.com/google/googletest.git
+[submodule "third_party/thread-pool"]
+	path = third_party/thread-pool
+	url = https://github.com/bshoshany/thread-pool.git

@@ -1,21 +1,21 @@
 #pragma once
 
-#include "../../async/AsyncRuntime.hpp"
+#include "runtime/async/async_runtime.h"
 
 #include <fstream>
 #include <optional>
 #include <string>
 #include <vector>
 
-namespace lovejs::fs_async {
+namespace qianjs::fs_async {
 
-// std::optional<std::string> 约定（与 init.hpp 里 isWrite 配合区分读/写）：
+// 与 FsModule 中 isWrite 配合：
 // - readFile：有值 = 成功（含空文件），无值 = 读失败
 // - writeFile：无值 = 成功，有值 = 失败原因
 using FsData = std::optional<std::string>;
 
-inline lovejs::async::AsyncOps<FsData>& fsAsyncOps() {
-    static lovejs::async::AsyncOps<FsData> ops;
+inline qianjs::async::AsyncOps<FsData>& fsAsyncOps() {
+    static qianjs::async::AsyncOps<FsData> ops;
     return ops;
 }
 
@@ -63,4 +63,4 @@ inline std::vector<CompletedResult> pumpResults() {
     return out;
 }
 
-} // namespace lovejs::fs_async
+} // namespace qianjs::fs_async

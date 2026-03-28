@@ -1,11 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-# 根据平台设置语言
-if(APPLE)
-    project(lovejs LANGUAGES C CXX OBJC)
-else()
-    project(lovejs LANGUAGES C CXX)
-endif()
+project(qianjs LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -37,60 +32,52 @@ elseif(UNIX)
     set(PLATFORM_LINUX TRUE)
 endif()
 
-# 第三方库
-include(cmake/sokol.cmake)
+option(QIANJS_BUILD_TESTS "Build QianJS tests (third_party/googletest submodule)" ON)
 
-# slowjs (JS engine wrapper; brings its own quickjs)
-add_subdirectory(third_party/slowjs)
-
-# 源文件
-set(LOVEJS_SOURCES
-    src/main.cpp
-)
-
-# 可执行文件
-add_executable(lovejs ${LOVEJS_SOURCES})
-
-target_include_directories(lovejs PRIVATE
-    ${CMAKE_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_SOURCE_DIR}/third_party/tinytp
-)
-
-# 链接第三方库
-target_link_libraries(lovejs PRIVATE
-    slowjs
-    sokol
-)
-
-# 性能优化和二进制压缩
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    # GCC/Clang/MinGW 优化
-    target_compile_options(lovejs PRIVATE -O3 -DNDEBUG -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(lovejs PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(lovejs PRIVATE -Wl,--gc-sections -s)
-    endif()
+# GoogleTest before qjs so QJS_BUILD_TESTS=ON can reuse GTest::gtest_main (see third_party/qjs/cmake/googletest.cmake).
+if(QIANJS_BUILD_TESTS)
+    include(cmake/googletest.cmake)
 endif()
 
-# 平台特定设置
-if(WIN32)
-    # 检查编译器是否为 MSVC，如果是则报错
-    if(MSVC)
-        message(FATAL_ERROR "MSVC is not supported. Please use MinGW-w64 or Clang on Windows.")
-    endif()
-    
-    target_compile_definitions(lovejs PRIVATE _CRT_SECURE_NO_WARNINGS)
-endif()
+include(cmake/qjs.cmake)
 
-if(APPLE)
-    target_link_libraries(lovejs PRIVATE
-        "-framework Cocoa"
-        "-framework IOKit"
-        "-framework CoreVideo"
-        "-framework Metal"
-        "-framework QuartzCore"
+option(QIANJS_BUILD_CLI "Build the qianjs command-line executable" ON)
+
+if(QIANJS_BUILD_CLI)
+    include(cmake/thread_pool.cmake)
+
+    set(QIANJS_SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/cli/main.cc
     )
-endif()
 
+    add_executable(qianjs ${QIANJS_SOURCES})
+
+    target_include_directories(qianjs PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
+
+    target_link_libraries(qianjs PRIVATE
+        qjs::qjs
+        qianjs::thread_pool
+    )
+
+    # 性能优化和二进制压缩
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        # GCC/Clang/MinGW 优化
+        target_compile_options(qianjs PRIVATE -O3 -DNDEBUG -ffunction-sections -fdata-sections)
+        if(APPLE)
+            target_link_options(qianjs PRIVATE -Wl,-dead_strip)
+        else()
+            target_link_options(qianjs PRIVATE -Wl,--gc-sections -s)
+        endif()
+    endif()
+
+    # 平台特定设置
+    if(WIN32)
+        if(MSVC)
+            message(FATAL_ERROR "MSVC is not supported. Please use MinGW-w64 or Clang on Windows.")
+        endif()
+
+        target_compile_definitions(qianjs PRIVATE _CRT_SECURE_NO_WARNINGS)
+    endif()
+endif()

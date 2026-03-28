@@ -1,159 +1,146 @@
-# LoveJS
+# QianJS
 
-A lightweight 2D game engine for JavaScript, inspired by [LÖVE](https://love2d.org/).
+A lightweight **JavaScript runtime** and CLI built on **QuickJS** via the vendored **[qjs](https://github.com/touken928/qjs)** C++ wrapper (`third_party/qjs` git submodule), with native modules, ES modules, and bytecode tooling.
 
 ## Features
 
-- Love2D-style callback API
-- ES6 module support
-- Bytecode compilation for distribution
-- Sokol-based rendering with modern graphics pipeline (Metal/D3D11/OpenGL)
-- Keyboard, mouse, and wheel input
-- Built-in text rendering
-- Geometric shapes and basic graphics primitives
-- Texture loading support
-- Matrix transformations (translate, rotate, scale)
+- ES module entry (`qianjs run main.js`)
+- Bytecode compile and run (`build` / `run *.qbc`)
+- Embed bytecode into a standalone executable (`embed`)
+- Built-in modules: `console`, `fs` (async Promise-based file I/O)
 - Cross-platform (macOS, Windows, Linux)
-- Modular native subsystems via `slowjs` plugins and typed host services
-- Asynchronous file I/O via the `fs` module (Promise-based API)
+- The **qjs** C++ layer is usable as a **standalone static library** from other CMake projects (`qjs::qjs`)
 
-## Quick Start
+## Quick start
 
 ```javascript
 // main.js
-import { setWindow, clear, present, setColor, circle, print } from 'graphics';
+import { log } from 'console';
 
-export function load() {
-    setWindow("My Game", 800, 600);
-}
+log('Hello, QianJS!');
+```
 
-export function update(dt) {
-    // Game logic here
-}
-
-export function draw() {
-    clear(0.1, 0.1, 0.2, 1);
-    
-    setColor(0, 1, 0, 1);
-    circle(400, 300, 50, true);
-    
-    setColor(1, 1, 1, 1);
-    print("Hello, LoveJS!", 350, 250);
-    
-    present();
-}
-
-export function keypressed(key) {}
-export function keyreleased(key) {}
-export function mousepressed(x, y, button) {}
-export function mousereleased(x, y, button) {}
-export function wheelmoved(x, y) {}
+```bash
+qianjs run main.js
 ```
 
 ## Build
 
 ### Prerequisites
+
 - CMake 3.16+
-- C++17 compatible compiler (**Note: MSVC is not supported**)
-- Git (for submodules)
+- C++17 compiler (**MSVC is not supported** on Windows; use MinGW-w64 or Clang)
 
-### Supported Compilers
-- **Linux**: GCC 7+ or Clang 5+
-- **macOS**: Clang (Xcode Command Line Tools)
-- **Windows**: MinGW-w64 or Clang (MSVC is not supported)
-
-### Clone the repository
-
-Clone this repository and its submodules (Sokol, slowjs, etc.):
+### Clone
 
 ```bash
-git clone --recurse-submodules https://github.com/touken928/lovejs.git
-cd lovejs
+git clone --recurse-submodules https://github.com/touken928/qianjs.git
+cd qianjs
 ```
 
-If you already cloned without submodules, initialize them with:
+If the GitHub repository is still named differently, adjust the URL. **Submodules** (initialize after clone if you skipped `--recurse-submodules`):
 
 ```bash
 git submodule update --init --recursive
 ```
 
-### Build Steps
+- `third_party/qjs` — [touken928/qjs](https://github.com/touken928/qjs) (C++ engine wrapper; **QuickJS** is **FetchContent** inside `qjs`)
+- `third_party/googletest` — [google/googletest](https://github.com/google/googletest) (pinned for **QianJS** tests only; not used via qjs FetchContent when this submodule is added first)
+- `third_party/thread-pool` — [BS::thread_pool](https://github.com/bshoshany/thread-pool) (header-only; pinned tag **`v5.1.0`**)
+
+### Configure and build
 
 ```bash
-# Configure and build (static linking by default)
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j8
 ```
 
-## CLI Usage
+The `qianjs` binary is in `build/bin/`.
+
+### Tests
+
+With **`QIANJS_BUILD_TESTS=ON`** (default), **`qianjs_tests`** link against **`third_party/googletest`** (git submodule — run `git submodule update --init third_party/googletest`). The **`qjs`** subdirectory defaults **`QJS_BUILD_TESTS=OFF`**, so the top-level **`qianjs`** build does **not** build **`qjs_tests`** or pull GTest for qjs. To run **qjs**’s own tests, configure from **`third_party/qjs`** (standalone default **`QJS_BUILD_TESTS=ON`**) or set **`QJS_BUILD_TESTS=ON`** before **`add_subdirectory(third_party/qjs)`**. First configure needs network for **QuickJS** FetchContent (and for GTest when those tests are enabled).
 
 ```bash
-# Show help
-lovejs help
+cmake -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j8
+ctest --test-dir build --output-on-failure
+```
 
-# Run a JavaScript file
-lovejs run main.js
+To skip tests: `cmake -B build -DQIANJS_BUILD_TESTS=OFF`.
 
-# Run a bytecode file
-lovejs run game.qbc
+## CLI
 
-# Compile JS to bytecode (output to ./dist/<name>.qbc)
-lovejs build main.js
+```bash
+qianjs help
 
-# Embed bytecode into standalone executable
-lovejs embed dist/main.qbc
+# Run a JS file (ES module)
+qianjs run main.js
+
+# Run bytecode
+qianjs run app.qbc
+
+# Compile JS → ./dist/<name>.qbc
+qianjs build main.js
+
+# Copy this executable with bytecode appended (see docs)
+qianjs embed dist/main.qbc
 ```
 
 ### Distribution
 
-You can distribute your game as a single standalone executable:
-
 ```bash
-# 1. Compile your game to bytecode
-lovejs build main.js
-
-# 2. Embed bytecode into executable (generates dist/main)
-lovejs embed dist/main.qbc
-
-# 3. Run the standalone executable
-./dist/main
+qianjs build main.js
+qianjs embed dist/main.qbc
+./dist/main    # or dist/main.exe on Windows
 ```
 
-## Rendering Backend
+With no arguments, `qianjs` tries embedded bytecode, then `<exe-name>.qbc` next to the executable or in the current directory.
 
-LoveJS uses **Sokol** as its rendering backend:
+**Note:** Bytecode executables embedded with the new footer magic (`QIANJSBC`) are not compatible with older `LOVEJSBC` footers.
 
-- **macOS**: Metal (native, high performance)
-- **Windows**: Direct3D 11
-- **Linux**: OpenGL 3.3 Core
+## Using the `qjs` library from CMake
 
-## Examples
+The targets **`qjs::qjs`** and **`qjs::quickjs`** come from **`add_subdirectory(third_party/qjs)`**. Initialize the **qjs** submodule; **QuickJS** is fetched automatically by **`qjs`** at a **pinned commit** inside `third_party/qjs/cmake/quickjs.cmake`.
 
-The `examples/` directory contains several demo programs:
+### `add_subdirectory`
 
-```bash
-lovejs run examples/hello.js
-lovejs run examples/particles.js
-lovejs run examples/game/tetris.js
-lovejs run examples/game/gomoku.js
-lovejs run examples/game/snap.js
-lovejs run examples/fs_demo.js
+```cmake
+set(QIANJS_BUILD_CLI OFF CACHE BOOL "" FORCE)     # do not build the `qianjs` executable
+set(QIANJS_BUILD_TESTS OFF CACHE BOOL "" FORCE)   # optional: skip GoogleTest + engine tests
+add_subdirectory(path/to/this/repo qianjs_build)
+
+add_executable(myapp main.cc)
+target_link_libraries(myapp PRIVATE qjs::qjs)
 ```
 
-## Dependencies
+Public headers use `#include <js_engine.h>` (and other `js_*.h` in the same directory); C++ API lives in namespace **`qjs::`**.
 
-Third-party libraries (managed as git submodules):
-- **Sokol** - Modern cross-platform graphics library
-- **QuickJS** - Lightweight JavaScript engine
+A minimal project lives under **`examples/use_qjs/`** (`cmake -S examples/use_qjs -B build && cmake --build build`).
+
+## Source layout
+
+| Path | Role |
+|------|------|
+| `src/cli/` | `main.cc` — command-line entry |
+| `src/runtime/` | Host runtime: `embed.h`, `headless_runtime.h`, `async/` (thread pool helpers) |
+| `src/native/` | Built-in native plugins: root `default_plugins.h`; modules under `console/`, `fs/`, … |
+| `third_party/qjs/` | **qjs** submodule — FetchContent **QuickJS**, optional **`qjs_tests`** when **`QJS_BUILD_TESTS`**, `src/`, `include/` (→ [touken928/qjs](https://github.com/touken928/qjs)) |
+| `examples/use_qjs/` | Sample consumer that only links **`qjs::qjs`** (no CLI) via `add_subdirectory` |
+
+Headers under `src/` use includes rooted at `src/` (e.g. `#include "runtime/embed.h"`). Engine API: **`#include <js_engine.h>`** via target **`qjs::qjs`** (headers from `third_party/qjs/include/`).
+
+**third_party:** **`qjs/`**, **`googletest/`**, and **`thread-pool/`** are git submodules; **QuickJS** comes from **`qjs`** FetchContent.
 
 ## Documentation
 
-See [docs/](./docs/) for detailed documentation:
+See [docs/README.md](./docs/README.md) and [docs/Fs.md](./docs/Fs.md).
 
-- [Getting Started Guide](./docs/README.md)
-- [Callback System](./docs/Callbacks.md)
-- [Graphics API Reference](./docs/Graphics.md)
-- [Async File I/O](./docs/Fs.md)
+## Dependencies
+
+- **QuickJS** — pulled by **`third_party/qjs`** via **FetchContent** from [bellard/quickjs](https://github.com/bellard/quickjs) (see its `LICENSE`)
+- **qjs** (CMake target `qjs::qjs`, namespace `qjs::`) — git submodule `third_party/qjs` ([touken928/qjs](https://github.com/touken928/qjs))
+- **BS::thread_pool** — submodule `third_party/thread-pool` ([bshoshany/thread-pool](https://github.com/bshoshany/thread-pool), MIT)
 
 ## License
 
