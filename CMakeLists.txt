@@ -51,6 +51,8 @@ if(QIANJS_BUILD_CLI)
         ${CMAKE_CURRENT_SOURCE_DIR}/src/cli/main.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/event_loop/event_loop.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/src/native/fs/fs_uv.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/native/fs/fs_ops.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/native/fs/fs_module.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/src/native/net/net_uv.cc
     )
 
