@@ -62,38 +62,6 @@ static bool stat_is_dir(const uv_stat_t& st) {
 #endif
 }
 
-file_flags parse_read_flag(std::string fl) {
-    if (fl.empty())
-        fl = "r";
-    if (fl == "r+" || fl == "rs+" || fl == "sr+")
-        return file_flags::RDWR;
-    return file_flags::RDONLY;
-}
-
-file_flags parse_write_flag(std::string fl, bool append_default) {
-    if (fl.empty())
-        fl = append_default ? "a" : "w";
-    if (fl == "a")
-        return file_flags::WRONLY | file_flags::CREAT | file_flags::APPEND;
-    if (fl == "ax")
-        return file_flags::WRONLY | file_flags::CREAT | file_flags::APPEND | file_flags::EXCL;
-    if (fl == "a+")
-        return file_flags::RDWR | file_flags::CREAT | file_flags::APPEND;
-    if (fl == "ax+")
-        return file_flags::RDWR | file_flags::CREAT | file_flags::APPEND | file_flags::EXCL;
-    if (fl == "w")
-        return file_flags::WRONLY | file_flags::CREAT | file_flags::TRUNC;
-    if (fl == "wx")
-        return file_flags::WRONLY | file_flags::CREAT | file_flags::TRUNC | file_flags::EXCL;
-    if (fl == "w+")
-        return file_flags::RDWR | file_flags::CREAT | file_flags::TRUNC;
-    if (fl == "wx+")
-        return file_flags::RDWR | file_flags::CREAT | file_flags::TRUNC | file_flags::EXCL;
-    if (fl == "r+")
-        return file_flags::RDWR | file_flags::CREAT | file_flags::TRUNC;
-    return file_flags::WRONLY | file_flags::CREAT | file_flags::TRUNC;
-}
-
 struct FsReadCtx {
     qjs::JSEngine::PromiseHandle ph{};
     std::string buffer;
@@ -139,7 +107,7 @@ void write_done_fail(const std::shared_ptr<FsWriteCtx>& ctx, std::string msg) {
 
 } // namespace
 
-qjs::RawJSValue fsReadFileAsync(qjs::JSEngine& engine, std::string path, bool asBuffer, std::string flag) {
+qjs::RawJSValue fsReadFileAsync(qjs::JSEngine& engine, std::string path, bool asBuffer) {
     qjs::JSEngine::PromiseHandle ph = engine.createPromise();
     if (!ph.ptr)
         return engine.promiseValue(ph);
@@ -152,7 +120,7 @@ qjs::RawJSValue fsReadFileAsync(qjs::JSEngine& engine, std::string path, bool as
     ctx->req_keep = req;
 
     using ft = uvw::file_req::fs_type;
-    const file_flags openFlags = parse_read_flag(std::move(flag));
+    const file_flags openFlags = file_flags::RDONLY;
 
     req->on<uvw::error_event>([ctx](const uvw::error_event& e, auto&) {
         read_done_fail(ctx, e.what());
@@ -263,16 +231,17 @@ static qjs::RawJSValue write_file_impl(qjs::JSEngine& engine, std::string path, 
     return engine.promiseValue(ph);
 }
 
-qjs::RawJSValue fsWriteFileAsync(qjs::JSEngine& engine, std::string path, std::vector<uint8_t> data, std::string flag,
-    int mode) {
-    return write_file_impl(engine, std::move(path), std::move(data), parse_write_flag(std::move(flag), false), mode);
+qjs::RawJSValue fsWriteFileAsync(qjs::JSEngine& engine, std::string path, std::vector<uint8_t> data) {
+    const file_flags flags = file_flags::WRONLY | file_flags::CREAT | file_flags::TRUNC;
+#ifdef _WIN32
+    const int mode = _S_IREAD | _S_IWRITE;
+#else
+    const int mode = 0644;
+#endif
+    return write_file_impl(engine, std::move(path), std::move(data), flags, mode);
 }
 
-qjs::RawJSValue fsAppendFileAsync(qjs::JSEngine& engine, std::string path, std::vector<uint8_t> data, int mode) {
-    return write_file_impl(engine, std::move(path), std::move(data), parse_write_flag("a", true), mode);
-}
-
-qjs::RawJSValue fsMkdirAsync(qjs::JSEngine& engine, std::string path, bool recursive, int mode) {
+qjs::RawJSValue fsMkdirAsync(qjs::JSEngine& engine, std::string path, bool recursive) {
     qjs::JSEngine::PromiseHandle ph = engine.createPromise();
     if (!ph.ptr)
         return engine.promiseValue(ph);
@@ -315,6 +284,6 @@ qjs::RawJSValue fsMkdirAsync(qjs::JSEngine& engine, std::string path, bool recur
     });
 
     qianjs::event_loop::begin_operation();
-    req->mkdir(path, mode);
+    req->mkdir(path, 0777);
     return engine.promiseValue(ph);
 }

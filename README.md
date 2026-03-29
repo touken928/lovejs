@@ -7,7 +7,7 @@ A lightweight **JavaScript runtime** and CLI built on **QuickJS** via the vendor
 - ES module entry (`qianjs run main.js`)
 - Bytecode compile and run (`build` / `run *.qbc`)
 - Embed bytecode into a standalone executable (`embed`)
-- Built-in modules: `console`, `fs` (libuv `uv_fs_*`), `net` (TCP client, libuv streams)
+- Built-in modules: `console`, `fs` (async libuv `uv_fs_*` + `fs.sync` synchronous helpers), `net` (TCP client, libuv streams)
 - Cross-platform (macOS, Windows, Linux)
 - The **qjs** C++ layer is usable as a **standalone static library** from other CMake projects (`qjs::qjs`)
 

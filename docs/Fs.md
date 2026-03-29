@@ -1,36 +1,44 @@
-# Fs 模块（异步文件 I/O，贴近 `fs.promises`）
+# Fs 模块（精简异步 / 同步子模块）
 
-`fs` 模块提供 **Promise 风格** 的文件系统 API；底层为 **uvw** / **libuv** `uv_fs_*`，完成回调经 **`event_loop::defer`** 回到 JS 线程 settle Promise。
+文件系统分为两层：
+
+- **`fs`**：返回 **Promise** 的异步 API（libuv `uv_fs_*`，完成回调经 `event_loop::defer` 回到 JS 线程）。
+- **`fs.sync`**：同名函数的 **同步** 版本（阻塞当前线程；`stat` 使用 libuv 同步 `uv_fs_stat`，其余以 `std::filesystem` / 流为主）。
+
+不设 `options` / `flag` / `mode` 等参数：语义固定，便于维护与使用。
 
 ## 导入
 
 ```javascript
 import * as fs from 'fs';
+import { sync as fss } from 'fs';
 ```
 
-## 二进制与编码
+C++ 侧将 **`sync`** 作为 **`fs` 的子导出**（命名空间对象），因此使用 `import { sync } from 'fs'` 或 `fs.sync.readFile(...)`。顶层模块名只有 **`fs`**，没有单独的 `fs/sync` 模块 specifier。
 
-- **`readFile(path)`** / **`readFile(path, { encoding: 'utf8' })`**：返回 **`Promise<string>`**（UTF-8 文本）。
-- **`readFile(path, { encoding: null })`**：返回 **`Promise<ArrayBuffer>`**（原始字节）。需要 `Uint8Array` 视图时用 **`new Uint8Array(buf)`**（本运行时无 Node 的 `Buffer`）。
-- **`writeFile` / `appendFile` 的 `data`**：可为 **字符串**、**`ArrayBuffer`** 或 **TypedArray**（按字节写入）。
+## 二进制与文本
 
-## API 一览
+- **`readFile(path)`**：`Promise<string>`，按 **UTF-8** 解码（与原先带 `encoding: 'utf8'` 行为一致）。
+- **`readFileBytes(path)`**：`Promise<ArrayBuffer>` 原始字节；需要视图时用 **`new Uint8Array(buf)`**（无 Node `Buffer`）。
+- **`writeFile(path, data)`**：覆盖写入；**`data`** 可为字符串、`ArrayBuffer` 或 TypedArray。权限为运行时默认（类 Unix 上新建文件约 `0o644`）。
+
+## 异步 API（`fs`）
 
 | 函数 | 说明 |
 |------|------|
-| `readFile(path, options?)` | 读整个文件。`options`: `encoding`（`'utf8'` / `null`）、`flag`（如 `'r'`、`'r+'`）。 |
-| `writeFile(path, data, options?)` | 覆盖写。`options`: `flag`（`'w'`、`'wx'`、`'a'`、`'a+'` 等）、`mode`（八进制，默认 `0o644` / Windows 等价）。 |
-| `appendFile(path, data, options?)` | 追加写；等价于以追加方式打开。`options.mode` 可设。 |
-| `mkdir(path, options?)` | `options.recursive` 为真时用 **`std::filesystem::create_directories`** 同步创建（在同一线程上执行）；否则单次 `uv_fs_mkdir`。`options.mode` 默认 `0o777`。 |
-| `readdir(path)` | **`Promise<string[]>`** 文件名（不含 `.` / `..`）。 |
-| `stat(path)` | 跟随符号链接。 |
-| `lstat(path)` | 不跟随符号链接。 |
-| `unlink(path)` | 删除文件。 |
-| `rmdir(path)` | 删除空目录。 |
-| `rename(oldPath, newPath)` | 重命名 / 移动。 |
-| `copyFile(src, dest, flags?)` | `flags` 为 libuv 拷贝标志；**`1`** = `COPYFILE_EXCL`（目标存在则失败）。 |
+| `readFile(path)` | 读整个文件为 UTF-8 字符串。 |
+| `readFileBytes(path)` | 读整个文件为 `ArrayBuffer`。 |
+| `writeFile(path, data)` | 截断写入。 |
+| `mkdir(path)` | 创建单级目录（父目录须已存在）。 |
+| `mkdirRecursive(path)` | 递归创建目录；异步分支在实现上等价于 `std::filesystem::create_directories`。 |
+| `readdir(path)` | `Promise<string[]>`，仅文件名（不含 `.` / `..`）。 |
+| `stat(path)` | 跟随符号链接；结果为普通对象（字段同 Node `fs.Stats` 的常见标量/布尔，无原型方法）。 |
+| `unlink(path)` | 删除文件（目录会失败）。 |
+| `rmdir(path)` | 删除**空**目录。 |
 
-`stat` / `lstat` 解析值为普通对象，含 **`size`**、**`*Ms` 时间戳**、**`isFile` / `isDirectory` / `isSymbolicLink`** 等布尔字段（与 Node 的 `fs.Stats` 形状接近，无方法原型）。
+## 同步 API（`fs.sync`）
+
+与上表同名、同参数；返回值直接为结果类型（`void` 操作为 `undefined`），失败时 **抛出**（QuickJS 异常）。
 
 ## 示例
 
@@ -39,24 +47,27 @@ import { log } from 'console';
 import * as fs from 'fs';
 
 const text = await fs.readFile('README.md');
-const raw = await fs.readFile('README.md', { encoding: null });
+const raw = await fs.readFileBytes('README.md');
 log('utf8 length ' + text.length);
 log('bytes ' + raw.byteLength);
 
 const enc = new TextEncoder().encode('hello');
-await fs.writeFile('out.bin', enc, { flag: 'w', mode: 0o644 });
+await fs.writeFile('out.bin', enc);
 
-await fs.mkdir('dist/nested', { recursive: true });
+await fs.mkdirRecursive('dist/nested');
 const names = await fs.readdir('.');
 const st = await fs.stat('README.md');
 log('stat ' + st.isFile + ' ' + st.size + ' ' + st.mtimeMs);
+
+// 同步
+const t2 = fs.sync.readFile('README.md');
+fs.sync.writeFile('out2.txt', 'hi');
 ```
 
-说明：进程退出前仍会排空挂起的 `fs` / `net`（见 `script_host.h` 中的 `drainAsyncWork`）。
+进程退出前仍会排空挂起的 `fs` / `net`（见 `script_host.h` 中的 `drainAsyncWork`）。
 
 ## 与 Node 的差异（简要）
 
-- 无 **`fs.promises`** 命名空间；本模块即 Promise 风格。
-- 无 **`Buffer`**；二进制为 **`ArrayBuffer`** + 可选 **`Uint8Array`**。
-- 无 Stream、`open`/`fd`、`watch`、`access` 等（可后续再加）。
-- `reject` 时部分错误带 **`error.code`**（两参数 `rejectPromise`）；未覆盖全部 errno 映射。
+- 无 `fs.promises` 命名空间；异步即顶层 `fs.*`。
+- 无 `Buffer`；二进制为 `ArrayBuffer` + 可选 `Uint8Array`。
+- 已移除：`appendFile`、`lstat`、`rename`、`copyFile` 及各类可选参数；需要追加/重命名/拷贝时请用读写组合或其它方式自行实现。

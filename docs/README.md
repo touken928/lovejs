@@ -4,7 +4,7 @@ QianJS 是一个轻量级 **JavaScript 运行时** 与命令行工具，基于 Q
 
 ## 目录
 
-- [Fs 模块](./Fs.md) — 异步文件读写（`uv_fs_*`）
+- [Fs 模块](./Fs.md) — 精简异步 `fs` + 同步子导出 `fs.sync`
 - [Net 模块](./Net.md) — 异步 TCP 客户端
 
 ## 快速开始
@@ -42,7 +42,7 @@ qianjs embed <file.qbc>
 | 模块    | 说明 |
 |---------|------|
 | console | `log(message: string)` 输出一行到 stdout |
-| fs      | 异步 `readFile` / `writeFile`（Promise，`uv_fs_*`） |
+| fs      | 异步 `readFile` / `readFileBytes` / `writeFile` 等；`fs.sync` 为同步同名 API |
 | net     | TCP 客户端：`connect` / `write` / `read` / `close`（见 [Net.md](./Net.md)） |
 
 ## 技术说明
