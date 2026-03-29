@@ -1,6 +1,6 @@
 # Fs 模块（异步文件 I/O）
 
-`fs` 模块提供简单的**异步文件读写**能力，基于 C++ 侧管理的 Promise。
+`fs` 模块提供简单的**异步文件读写**能力，基于 C++ 侧管理的 Promise；原生实现使用 **uvw** `file_req`（libuv 线程池上的 `uv_fs_*`）。
 
 ## 导入
 
@@ -49,4 +49,4 @@ try {
 }
 ```
 
-说明：进程在退出前会等待 `fs` 相关的 Promise 结算（见运行时实现中的 async drain）。
+说明：进程在退出前会等待 `fs` 与 `net` 等原生 I/O 完成（见 `script_host.h` 中的 `drainAsyncWork`）。`readFile` / `writeFile` 使用 **libuv** 的 **`uv_fs_*`**（与 Node 同栈），完成回调经 **`event_loop::defer`** 在主线程上 resolve/reject Promise。

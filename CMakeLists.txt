@@ -44,21 +44,27 @@ include(cmake/qjs.cmake)
 option(QIANJS_BUILD_CLI "Build the qianjs command-line executable" ON)
 
 if(QIANJS_BUILD_CLI)
-    include(cmake/thread_pool.cmake)
+    include(cmake/libuv.cmake)
+    find_package(Threads REQUIRED)
 
     set(QIANJS_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/src/cli/main.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/event_loop/event_loop.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/native/fs/fs_uv.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/native/net/net_uv.cc
     )
 
     add_executable(qianjs ${QIANJS_SOURCES})
 
     target_include_directories(qianjs PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/uvw/src
     )
 
     target_link_libraries(qianjs PRIVATE
         qjs::qjs
-        qianjs::thread_pool
+        qianjs::libuv
+        Threads::Threads
     )
 
     # 性能优化和二进制压缩

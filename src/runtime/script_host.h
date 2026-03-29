@@ -3,6 +3,7 @@
 #include <js_engine.h>
 
 #include "native/default_plugins.h"
+#include "runtime/event_loop/event_loop.h"
 #include "runtime/embed.h"
 
 #include <chrono>
@@ -13,19 +14,21 @@
 
 namespace qianjs {
 
+/** Run the event loop and microtasks until native I/O and JS jobs are idle (or timeout). */
 inline void drainAsyncWork(qjs::JSEngine& engine) {
     using clock = std::chrono::steady_clock;
     const auto deadline = clock::now() + std::chrono::seconds(120);
     int idleRounds = 0;
 
     while (clock::now() < deadline) {
-        fs_async::pumpPromises(engine);
+        qianjs::event_loop::tick();
+        qianjs::event_loop::run_deferred(engine);
         engine.pumpMicrotasks();
 
-        const bool noFsWait = fs_async::pendingPromises().empty();
+        const bool noNativeWait = qianjs::event_loop::pending_operations() == 0;
         const bool noJsJobs = !engine.isJobPending();
 
-        if (noFsWait && noJsJobs) {
+        if (noNativeWait && noJsJobs) {
             if (++idleRounds >= 3)
                 return;
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -35,10 +38,11 @@ inline void drainAsyncWork(qjs::JSEngine& engine) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
-    std::cerr << "Warning: timed out while waiting for async work to finish\n";
+    std::cerr << "Warning: timed out while waiting for pending native I/O to finish\n";
 }
 
-inline int runHeadlessScript(const std::filesystem::path& inputPath) {
+/** Run a `.js` module or `.qbc` file from disk; installs default plugins and drains async work before exit. */
+inline int runScriptFile(const std::filesystem::path& inputPath) {
     qjs::JSEngine engine;
     engine.initialize();
     defaultPlugins().installAll(engine, engine.root());
@@ -65,7 +69,8 @@ inline int runHeadlessScript(const std::filesystem::path& inputPath) {
     return 0;
 }
 
-inline int runHeadlessEmbedded() {
+/** Run bytecode embedded in this executable (`Embed::readEmbeddedBytecode`); returns -1 if none. */
+inline int runEmbeddedBytecode() {
     std::vector<uint8_t> embedded = Embed::readEmbeddedBytecode();
     if (embedded.empty())
         return -1;

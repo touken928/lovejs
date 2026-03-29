@@ -10,7 +10,7 @@
 
 #include "native/default_plugins.h"
 #include "runtime/embed.h"
-#include "runtime/headless_runtime.h"
+#include "runtime/script_host.h"
 
 #include <js_engine.h>
 #include <iostream>
@@ -100,11 +100,11 @@ static int cmdRun(const fs::path& inputPath) {
         std::cerr << "Error: File not found: " << inputPath << std::endl;
         return 1;
     }
-    return qianjs::runHeadlessScript(inputPath);
+    return qianjs::runScriptFile(inputPath);
 }
 
 static int cmdRunBundled() {
-    int result = qianjs::runHeadlessEmbedded();
+    int result = qianjs::runEmbeddedBytecode();
     if (result >= 0)
         return result;
 

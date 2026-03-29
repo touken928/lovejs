@@ -7,7 +7,7 @@ A lightweight **JavaScript runtime** and CLI built on **QuickJS** via the vendor
 - ES module entry (`qianjs run main.js`)
 - Bytecode compile and run (`build` / `run *.qbc`)
 - Embed bytecode into a standalone executable (`embed`)
-- Built-in modules: `console`, `fs` (async Promise-based file I/O)
+- Built-in modules: `console`, `fs` (libuv `uv_fs_*`), `net` (TCP client, libuv streams)
 - Cross-platform (macOS, Windows, Linux)
 - The **qjs** C++ layer is usable as a **standalone static library** from other CMake projects (`qjs::qjs`)
 
@@ -46,7 +46,7 @@ git submodule update --init --recursive
 
 - `third_party/qjs` — [touken928/qjs](https://github.com/touken928/qjs) (C++ engine wrapper; **QuickJS** is **FetchContent** inside `qjs`)
 - `third_party/googletest` — [google/googletest](https://github.com/google/googletest) (pinned for **QianJS** tests only; not used via qjs FetchContent when this submodule is added first)
-- `third_party/thread-pool` — [BS::thread_pool](https://github.com/bshoshany/thread-pool) (header-only; pinned tag **`v5.1.0`**)
+- `third_party/libuv` — [libuv/libuv](https://github.com/libuv/libuv) (`v1.x` branch; async I/O and `uv_queue_work` thread pool)
 
 ### Configure and build
 
@@ -123,14 +123,14 @@ A minimal project lives under **`examples/use_qjs/`** (`cmake -S examples/use_qj
 | Path | Role |
 |------|------|
 | `src/cli/` | `main.cc` — command-line entry |
-| `src/runtime/` | Host runtime: `embed.h`, `headless_runtime.h`, `async/` (thread pool helpers) |
-| `src/native/` | Built-in native plugins: root `default_plugins.h`; modules under `console/`, `fs/`, … |
+| `src/runtime/` | Host runtime: `embed.h`, `script_host.h` (run script + drain async), `event_loop/` (libuv + deferred JS work) |
+| `src/native/` | Built-in plugins: `default_plugins.h`; `console/`, `fs/` (`fs_uv`), `net/` (`net_uv`), … |
 | `third_party/qjs/` | **qjs** submodule — FetchContent **QuickJS**, optional **`qjs_tests`** when **`QJS_BUILD_TESTS`**, `src/`, `include/` (→ [touken928/qjs](https://github.com/touken928/qjs)) |
 | `examples/use_qjs/` | Sample consumer that only links **`qjs::qjs`** (no CLI) via `add_subdirectory` |
 
 Headers under `src/` use includes rooted at `src/` (e.g. `#include "runtime/embed.h"`). Engine API: **`#include <js_engine.h>`** via target **`qjs::qjs`** (headers from `third_party/qjs/include/`).
 
-**third_party:** **`qjs/`**, **`googletest/`**, and **`thread-pool/`** are git submodules; **QuickJS** comes from **`qjs`** FetchContent.
+**third_party:** **`qjs/`**, **`googletest/`**, and **`libuv/`** are git submodules; **QuickJS** comes from **`qjs`** FetchContent.
 
 ## Documentation
 
@@ -140,7 +140,7 @@ See [docs/README.md](./docs/README.md) and [docs/Fs.md](./docs/Fs.md).
 
 - **QuickJS** — pulled by **`third_party/qjs`** via **FetchContent** from [bellard/quickjs](https://github.com/bellard/quickjs) (see its `LICENSE`)
 - **qjs** (CMake target `qjs::qjs`, namespace `qjs::`) — git submodule `third_party/qjs` ([touken928/qjs](https://github.com/touken928/qjs))
-- **BS::thread_pool** — submodule `third_party/thread-pool` ([bshoshany/thread-pool](https://github.com/bshoshany/thread-pool), MIT)
+- **libuv** — submodule `third_party/libuv` ([libuv/libuv](https://github.com/libuv/libuv), MIT)
 
 ## License
 
