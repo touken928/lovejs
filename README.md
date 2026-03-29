@@ -124,7 +124,7 @@ A minimal project lives under **`examples/use_qjs/`** (`cmake -S examples/use_qj
 |------|------|
 | `src/cli/` | `main.cc` — command-line entry |
 | `src/runtime/` | Host runtime: `embed.h`, `script_host.h` (run script + drain async), `event_loop/` (libuv + deferred JS work) |
-| `src/native/` | Built-in plugins: `default_plugins.h`; `console/`, `fs/` (`fs_uv`), `net/` (`net_uv`), … |
+| `src/native/` | Built-in plugins: `default_plugins.h`; `console/`, `fs/`, `net/`（`net_uv` + `net_module`），… |
 | `third_party/qjs/` | **qjs** submodule — FetchContent **QuickJS**, optional **`qjs_tests`** when **`QJS_BUILD_TESTS`**, `src/`, `include/` (→ [touken928/qjs](https://github.com/touken928/qjs)) |
 | `examples/use_qjs/` | Sample consumer that only links **`qjs::qjs`** (no CLI) via `add_subdirectory` |
 

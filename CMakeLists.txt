@@ -56,6 +56,7 @@ if(QIANJS_BUILD_CLI)
         ${CMAKE_CURRENT_SOURCE_DIR}/src/native/fs/fs_sync.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/src/native/fs/fs_module.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/src/native/net/net_uv.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/native/net/net_module.cc
     )
 
     add_executable(qianjs ${QIANJS_SOURCES})

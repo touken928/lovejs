@@ -43,7 +43,7 @@ qianjs embed <file.qbc>
 |---------|------|
 | console | `log(message: string)` 输出一行到 stdout |
 | fs      | 异步 `readFile` / `readFileBytes` / `writeFile` 等；`fs.sync` 为同步同名 API |
-| net     | TCP 客户端：`connect` / `write` / `read` / `close`（见 [Net.md](./Net.md)） |
+| net     | TCP 客户端：`connect` / `write`（字符串或二进制）/ `read` / `readBytes` / `close`（见 [Net.md](./Net.md)） |
 
 ## 技术说明
 

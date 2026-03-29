@@ -12,6 +12,7 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace {
 
@@ -37,6 +38,15 @@ void schedule_resolve_string(qjs::JSEngine::PromiseHandle ph, std::string s) {
         });
 }
 
+void schedule_resolve_bytes(qjs::JSEngine::PromiseHandle ph, std::string buffer) {
+    qianjs::event_loop::defer(
+        [ph, buf = std::move(buffer)](qjs::JSEngine& e) {
+            const uint8_t* p = reinterpret_cast<const uint8_t*>(buf.data());
+            e.resolvePromiseBytes(ph, p, buf.size());
+            e.freePromise(ph);
+        });
+}
+
 void schedule_resolve_void(qjs::JSEngine::PromiseHandle ph) {
     qianjs::event_loop::defer([ph](qjs::JSEngine& e) {
         e.resolvePromiseVoid(ph);
@@ -53,7 +63,7 @@ void schedule_resolve_int64(qjs::JSEngine::PromiseHandle ph, int64_t n) {
 
 struct WriteOpCtx {
     qjs::JSEngine::PromiseHandle ph{};
-    std::string bytes;
+    std::vector<uint8_t> bytes;
 };
 
 class SocketCtx {
@@ -63,6 +73,7 @@ public:
 
     std::string inbound;
     qjs::JSEngine::PromiseHandle read_ph{};
+    bool read_want_bytes = false;
     bool read_wait = false;
     bool read_started = false;
     bool eof = false;
@@ -79,10 +90,15 @@ public:
         if (!read_wait || !read_ph.ptr)
             return;
         auto ph = read_ph;
+        const bool want_bytes = read_want_bytes;
         read_ph = {};
         read_wait = false;
+        read_want_bytes = false;
         qianjs::event_loop::end_operation();
-        schedule_resolve_string(ph, std::move(chunk));
+        if (want_bytes)
+            schedule_resolve_bytes(ph, std::move(chunk));
+        else
+            schedule_resolve_string(ph, std::move(chunk));
     }
 
     void try_deliver_read() {
@@ -109,7 +125,7 @@ public:
             buf = std::make_unique<char[]>(1);
         } else {
             buf = std::make_unique<char[]>(op->bytes.size());
-            std::memcpy(buf.get(), op->bytes.data(), op->bytes.size());
+            std::memcpy(buf.get(), reinterpret_cast<const char*>(op->bytes.data()), op->bytes.size());
         }
 
         if (tcp->write(std::move(buf), len) != 0) {
@@ -190,6 +206,7 @@ static void wire_socket(SocketCtx* sock) {
             auto ph = sock->read_ph;
             sock->read_ph = {};
             sock->read_wait = false;
+            sock->read_want_bytes = false;
             qianjs::event_loop::end_operation();
             schedule_reject(ph, e.what());
         }
@@ -283,7 +300,7 @@ qjs::RawJSValue netConnectAsync(qjs::JSEngine& engine, int port, std::string hos
     return engine.promiseValue(ph);
 }
 
-qjs::RawJSValue netWriteAsync(qjs::JSEngine& engine, int64_t sock_id, std::string data) {
+qjs::RawJSValue netWriteAsync(qjs::JSEngine& engine, int64_t sock_id, std::vector<uint8_t> data) {
     qjs::JSEngine::PromiseHandle ph = engine.createPromise();
     if (!ph.ptr)
         return engine.promiseValue(ph);
@@ -307,7 +324,7 @@ qjs::RawJSValue netWriteAsync(qjs::JSEngine& engine, int64_t sock_id, std::strin
     return engine.promiseValue(ph);
 }
 
-qjs::RawJSValue netReadAsync(qjs::JSEngine& engine, int64_t sock_id) {
+static qjs::RawJSValue net_read_async_impl(qjs::JSEngine& engine, int64_t sock_id, bool want_bytes) {
     qjs::JSEngine::PromiseHandle ph = engine.createPromise();
     if (!ph.ptr)
         return engine.promiseValue(ph);
@@ -329,20 +346,28 @@ qjs::RawJSValue netReadAsync(qjs::JSEngine& engine, int64_t sock_id) {
     if (!s->inbound.empty()) {
         std::string chunk = std::move(s->inbound);
         s->inbound.clear();
-        schedule_resolve_string(ph, std::move(chunk));
+        if (want_bytes)
+            schedule_resolve_bytes(ph, std::move(chunk));
+        else
+            schedule_resolve_string(ph, std::move(chunk));
         return engine.promiseValue(ph);
     }
     if (s->eof) {
-        schedule_resolve_string(ph, {});
+        if (want_bytes)
+            schedule_resolve_bytes(ph, {});
+        else
+            schedule_resolve_string(ph, {});
         return engine.promiseValue(ph);
     }
 
     s->read_wait = true;
+    s->read_want_bytes = want_bytes;
     s->read_ph = ph;
     qianjs::event_loop::begin_operation();
     if (!s->read_started) {
         if (s->tcp->read() != 0) {
             s->read_wait = false;
+            s->read_want_bytes = false;
             s->read_ph = {};
             qianjs::event_loop::end_operation();
             schedule_reject(ph, "uv_read_start failed");
@@ -351,6 +376,14 @@ qjs::RawJSValue netReadAsync(qjs::JSEngine& engine, int64_t sock_id) {
         s->read_started = true;
     }
     return engine.promiseValue(ph);
+}
+
+qjs::RawJSValue netReadAsync(qjs::JSEngine& engine, int64_t sock_id) {
+    return net_read_async_impl(engine, sock_id, false);
+}
+
+qjs::RawJSValue netReadBytesAsync(qjs::JSEngine& engine, int64_t sock_id) {
+    return net_read_async_impl(engine, sock_id, true);
 }
 
 void netClose(int64_t sock_id) {
@@ -368,6 +401,7 @@ void netClose(int64_t sock_id) {
         auto ph = s->read_ph;
         s->read_ph = {};
         s->read_wait = false;
+        s->read_want_bytes = false;
         qianjs::event_loop::end_operation();
         schedule_reject(ph, "socket closed");
     }
