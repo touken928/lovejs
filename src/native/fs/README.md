@@ -64,7 +64,7 @@ const t2 = fs.sync.readFile('README.md');
 fs.sync.writeFile('out2.txt', 'hi');
 ```
 
-进程退出前仍会排空挂起的 `fs` / `net`（见 `script_host.h` 中的 `drainAsyncWork`）。
+进程退出前仍会排空挂起的 `fs` / `net`（见 `src/runtime/script_host.h` 中的 `drainAsyncWork`）。
 
 ## 与 Node 的差异（简要）
 

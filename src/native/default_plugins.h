@@ -1,13 +1,10 @@
 #pragma once
 
-#include "console/console_plugin.h"
-#include "fs/fs_module.h"
-#include "net/net_module.h"
+#include <js_plugin.h>
+#include <qianjs_default_plugins.g.h>
 
 inline qjs::PluginRegistry defaultPlugins() {
     qjs::PluginRegistry r;
-    r.emplace<ConsolePlugin>();
-    r.emplace<FsPlugin>();
-    r.emplace<NetPlugin>();
+    qianjs_populate_default_plugins(r);
     return r;
 }

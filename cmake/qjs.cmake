@@ -1,11 +1,8 @@
-# qjs C++ wrapper + QuickJS (FetchContent in third_party/qjs/cmake/quickjs.cmake).
-# Submodule: third_party/qjs
+# third_party/qjs — QuickJS C++ 封装（上游定义 `qjs::qjs` 等，此处不新增 target 名）。
 
-set(_qianjs_qjs_root "${CMAKE_CURRENT_SOURCE_DIR}/third_party/qjs")
-if(NOT EXISTS "${_qianjs_qjs_root}/CMakeLists.txt")
-    message(FATAL_ERROR
-        "qjs missing at ${_qianjs_qjs_root}.\n"
-        "  git submodule update --init third_party/qjs")
+set(_root "${CMAKE_CURRENT_SOURCE_DIR}/third_party/qjs")
+if(NOT EXISTS "${_root}/CMakeLists.txt")
+    message(FATAL_ERROR "qjs missing at ${_root}.\n  git submodule update --init third_party/qjs")
 endif()
 
-add_subdirectory(${_qianjs_qjs_root})
+add_subdirectory("${_root}")

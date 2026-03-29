@@ -5,6 +5,8 @@
 #include <functional>
 #include <memory>
 
+#if QIANJS_HAVE_LIBUV
+
 namespace uvw {
 class loop;
 }
@@ -22,22 +24,24 @@ uv_loop_t* loop();
 
 } // namespace qianjs::event_loop::uv
 
+#endif
+
 namespace qianjs::event_loop {
 
 /**
- * Host-side event driver (backed by uvw/libuv inside the runtime).
- * Native I/O code includes this header for `defer` / `tick` / `uvw_loop()`, and `<uvw.hpp>` for uvw types.
+ * Host-side event driver. With `QIANJS_HAVE_LIBUV`, backed by uvw/libuv; otherwise `tick` / `ensure_started` are no-ops.
+ * Native I/O code includes this header for `defer` / `tick` / `uvw_loop()`, and `<uvw.hpp>` for uvw types when libuv is enabled.
  */
 
-/** Idempotent; ensures the loop exists (used implicitly on first `tick()` / `uvw_loop()`). */
+/** Idempotent; ensures the loop exists when libuv is enabled. */
 void ensure_started();
 
-/** One non-blocking uvw/libuv pass (`UV_RUN_NOWAIT`). */
+/** One non-blocking pass when libuv is enabled (`UV_RUN_NOWAIT`); otherwise a no-op. */
 void tick();
 
 /**
  * Queue work that must run on the JS thread (Promise settle, engine APIs).
- * Safe to call from libuv callbacks; runs on the next `run_deferred`.
+ * Safe to call from libuv callbacks when enabled; runs on the next `run_deferred`.
  */
 void defer(std::function<void(qjs::JSEngine&)> fn);
 
