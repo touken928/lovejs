@@ -142,8 +142,6 @@ target_link_libraries(myapp PRIVATE qjs::qjs)
 
 公开 API：**`#include <js_engine.h>`** 及同目录相关头文件；C++ 命名空间 **`qjs::`**。
 
-最小示例：**[`examples/use_qjs/`](examples/use_qjs/)**。
-
 ---
 
 ## 仓库结构
@@ -158,7 +156,6 @@ CMake 与第三方封装策略：**[`cmake/README.md`](cmake/README.md)**。
 | `src/native/` | 内置插件；**`native_modules.cmake`**（模块选项与生成头）、**`CMakeLists.txt`**（源码）；详见 **[`src/native/README.md`](src/native/README.md)** |
 | `tests/` | **`qianjs_tests`** |
 | `third_party/qjs` | 引擎子模块 |
-| `examples/use_qjs/` | 仅链接 **`qjs::qjs`** 的示例工程 |
 
 **`src/`** 下源码以 **`src/`** 为 include 根（例如 **`#include "runtime/embed.h"`**）。
 
