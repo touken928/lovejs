@@ -14,13 +14,15 @@
 
 #include <js_engine.h>
 #include <iostream>
+#include <string>
+#include <vector>
 
 namespace fs = std::filesystem;
 
 static void printUsage(const char* progName) {
     std::cout << "QianJS — JavaScript runtime\n\n"
               << "Usage:\n"
-              << "  " << progName << " run <file.js|qbc>   Run JS or bytecode\n"
+              << "  " << progName << " run <file.js|qbc> [args...]   Run JS or bytecode\n"
               << "  " << progName << " build <file.js>     Compile JS to ./dist/<name>.qbc\n"
               << "  " << progName << " embed <file.qbc>    Embed bytecode into a standalone executable\n"
               << "  " << progName << " help                Show this help\n"
@@ -95,16 +97,23 @@ static int cmdEmbed(const fs::path& qbcPath) {
     return 0;
 }
 
-static int cmdRun(const fs::path& inputPath) {
+static int cmdRun(const fs::path& inputPath, std::vector<std::string> scriptArgv) {
     if (!fs::exists(inputPath)) {
         std::cerr << "Error: File not found: " << inputPath << std::endl;
         return 1;
     }
-    return qianjs::runScriptFile(inputPath);
+    if (scriptArgv.empty())
+        scriptArgv.push_back(inputPath.string());
+    return qianjs::runScriptFile(inputPath, std::move(scriptArgv));
 }
 
-static int cmdRunBundled() {
-    int result = qianjs::runEmbeddedBytecode();
+static int cmdRunBundled(int argc, char* argv[]) {
+    std::vector<std::string> scriptArgv;
+    scriptArgv.reserve(static_cast<size_t>(argc));
+    for (int i = 0; i < argc; i++)
+        scriptArgv.emplace_back(argv[i]);
+
+    int result = qianjs::runEmbeddedBytecode(std::move(scriptArgv));
     if (result >= 0)
         return result;
 
@@ -114,18 +123,18 @@ static int cmdRunBundled() {
 
     fs::path qbcPath = exeDir / (exeName + ".qbc");
     if (fs::exists(qbcPath))
-        return cmdRun(qbcPath);
+        return cmdRun(qbcPath, { qbcPath.string() });
 
     qbcPath = fs::path(exeName + ".qbc");
     if (fs::exists(qbcPath))
-        return cmdRun(qbcPath);
+        return cmdRun(qbcPath, { qbcPath.string() });
 
     return -1;
 }
 
 int main(int argc, char* argv[]) {
     if (argc == 1) {
-        int result = cmdRunBundled();
+        int result = cmdRunBundled(argc, argv);
         if (result >= 0)
             return result;
 
@@ -161,10 +170,14 @@ int main(int argc, char* argv[]) {
     if (cmd == "run") {
         if (argc < 3) {
             std::cerr << "Error: Missing input file\n"
-                      << "Usage: " << argv[0] << " run <file.js|file.qbc>" << std::endl;
+                      << "Usage: " << argv[0] << " run <file.js|file.qbc> [args...]" << std::endl;
             return 1;
         }
-        return cmdRun(argv[2]);
+        std::vector<std::string> scriptArgv;
+        scriptArgv.reserve(static_cast<size_t>(argc - 2));
+        for (int i = 2; i < argc; i++)
+            scriptArgv.emplace_back(argv[i]);
+        return cmdRun(argv[2], std::move(scriptArgv));
     }
 
     std::cerr << "Error: Unknown command: " << cmd << std::endl;

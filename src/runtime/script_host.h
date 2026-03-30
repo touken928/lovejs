@@ -5,11 +5,13 @@
 #include "native/default_plugins.h"
 #include "runtime/event_loop/event_loop.h"
 #include "runtime/embed.h"
+#include "runtime/runtime_context.h"
 
 #include <chrono>
 #include <filesystem>
 #include <iostream>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace qianjs {
@@ -42,9 +44,16 @@ inline void drainAsyncWork(qjs::JSEngine& engine) {
 }
 
 /** Run a `.js` module or `.qbc` file from disk; installs default plugins and drains async work before exit. */
-inline int runScriptFile(const std::filesystem::path& inputPath) {
+inline int runScriptFile(const std::filesystem::path& inputPath, std::vector<std::string> argv = {}) {
     qjs::JSEngine engine;
     engine.initialize();
+    RuntimeContext runtime;
+    if (argv.empty())
+        runtime.argv.push_back(inputPath.string());
+    else
+        runtime.argv = std::move(argv);
+    runtime.env = captureEnvironment();
+    engine.setHost<RuntimeContext>(&runtime);
     defaultPlugins().installAll(engine, engine.root());
 
     bool ok = false;
@@ -66,17 +75,21 @@ inline int runScriptFile(const std::filesystem::path& inputPath) {
 
     drainAsyncWork(engine);
     engine.cleanup();
-    return 0;
+    return runtime.exit_code;
 }
 
 /** Run bytecode embedded in this executable (`Embed::readEmbeddedBytecode`); returns -1 if none. */
-inline int runEmbeddedBytecode() {
+inline int runEmbeddedBytecode(std::vector<std::string> argv = {}) {
     std::vector<uint8_t> embedded = Embed::readEmbeddedBytecode();
     if (embedded.empty())
         return -1;
 
     qjs::JSEngine engine;
     engine.initialize();
+    RuntimeContext runtime;
+    runtime.argv = std::move(argv);
+    runtime.env = captureEnvironment();
+    engine.setHost<RuntimeContext>(&runtime);
     defaultPlugins().installAll(engine, engine.root());
 
     if (!engine.runBytecode(embedded.data(), embedded.size())) {
@@ -86,7 +99,7 @@ inline int runEmbeddedBytecode() {
 
     drainAsyncWork(engine);
     engine.cleanup();
-    return 0;
+    return runtime.exit_code;
 }
 
 } // namespace qianjs

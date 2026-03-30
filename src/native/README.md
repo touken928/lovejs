@@ -1,6 +1,6 @@
 # 内置 native 模块（目录约定）
 
-本目录每个子文件夹（如 `console/`、`fs/`、`net/`）对应一个 **QuickJS 插件**：在 C++ 里实现 `qjs::JSEngine` 的扩展，对 JS 暴露为内置模块。
+本目录每个子文件夹（如 `console/`、`fs/`、`net/`、`process/`、`timers/`）对应一个 **QuickJS 插件**：在 C++ 里实现 `qjs::JSEngine` 的扩展，对 JS 暴露为内置模块。
 
 ## 管理（CMake）
 
@@ -31,3 +31,5 @@
 - [console](console/README.md)
 - [fs](fs/README.md)
 - [net](net/README.md)
+- [process](process/README.md)
+- [timers](timers/README.md)

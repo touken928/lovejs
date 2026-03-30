@@ -46,6 +46,8 @@ endfunction()
 
 set_property(GLOBAL PROPERTY QIANJS_PLUGIN_SPECS "")
 
-qianjs_native_register_module(console ConsolePlugin native/console/console_plugin.h)
+qianjs_native_register_module(console ConsolePlugin native/console/console_module.h)
 qianjs_native_register_module(fs FsPlugin native/fs/fs_module.h)
 qianjs_native_register_module(net NetPlugin native/net/net_module.h)
+qianjs_native_register_module(process ProcessPlugin native/process/process_module.h)
+qianjs_native_register_module(timers TimersPlugin native/timers/timers_module.h)

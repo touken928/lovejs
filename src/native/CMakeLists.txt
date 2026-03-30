@@ -17,7 +17,23 @@ if(QIANJS_MODULE_NET)
     )
 endif()
 
-# console: header-only plugin, no extra translation units
+if(QIANJS_MODULE_CONSOLE)
+    target_sources(qianjs PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/console/console_module.cc
+    )
+endif()
+
+if(QIANJS_MODULE_PROCESS)
+    target_sources(qianjs PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/process/process_module.cc
+    )
+endif()
+
+if(QIANJS_MODULE_TIMERS)
+    target_sources(qianjs PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/timers/timers_module.cc
+    )
+endif()
 
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/generated")
 qianjs_write_native_glue("${CMAKE_BINARY_DIR}/generated")
