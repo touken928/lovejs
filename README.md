@@ -186,4 +186,4 @@ CMake 与第三方封装策略：**[`cmake/README.md`](cmake/README.md)**。
 
 本仓库中由 QianJS 项目维护的原创代码默认以 [**Apache License 2.0**](https://www.apache.org/licenses/LICENSE-2.0.txt) 发布，全文见根目录 [`LICENSE`](LICENSE)。
 
-第三方依赖（QuickJS、libuv、uvw、GoogleTest 等）保留各自许可证，见 `third_party/**/LICENSE` 或上游说明。通过 FetchContent 获取的 QuickJS 源码遵循 [bellard/quickjs](https://github.com/bellard/quickjs) 的许可；`third_party/qjs` 目录下的说明见 [`third_party/qjs/LICENSE`](third_party/qjs/LICENSE)。
+第三方依赖（QuickJS、libuv、uvw、GoogleTest 等）保留各自许可证，见 `third_party/**/LICENSE` 或上游说明。通过 FetchContent 获取的 QuickJS 源码遵循 [bellard/quickjs](https://github.com/bellard/quickjs) 的许可；`third_party/qjs` 子模块内为 **Apache-2.0 全文** [`LICENSE`](third_party/qjs/LICENSE)，版权与第三方说明见 [`NOTICE`](third_party/qjs/NOTICE)。
