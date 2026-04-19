@@ -6,7 +6,9 @@
 #include <vector>
 
 #if !defined(_WIN32)
+extern "C" {
 extern char** environ;
+}
 #endif
 
 namespace qianjs {
