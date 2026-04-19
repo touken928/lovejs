@@ -1,6 +1,8 @@
 #include "native/fs/fs_stat_js.h"
 #include "native/fs/fs_uv.h"
 
+#include "native/fs/fs_async_schedule.h"
+
 #include "runtime/event_loop/event_loop.h"
 
 #include <uvw.hpp>
@@ -13,20 +15,8 @@
 
 namespace {
 
-void schedule_reject(qjs::JSEngine::PromiseHandle ph, std::string msg) {
-    qianjs::event_loop::defer(
-        [ph, msg = std::move(msg)](qjs::JSEngine& e) {
-            e.rejectPromise(ph, msg);
-            e.freePromise(ph);
-        });
-}
-
-void schedule_resolve_void(qjs::JSEngine::PromiseHandle ph) {
-    qianjs::event_loop::defer([ph](qjs::JSEngine& e) {
-        e.resolvePromiseVoid(ph);
-        e.freePromise(ph);
-    });
-}
+using qianjs::fs::schedule::reject;
+using qianjs::fs::schedule::resolve_void;
 
 void schedule_resolve_string_array(qjs::JSEngine::PromiseHandle ph, std::vector<std::string> names) {
     qianjs::event_loop::defer(
@@ -88,7 +78,7 @@ qjs::RawJSValue fsReaddirAsync(qjs::JSEngine& engine, std::string path) {
 
     req->on<uvw::error_event>([ctx](const uvw::error_event& e, auto&) {
         qianjs::event_loop::end_operation();
-        schedule_reject(ctx->ph, e.what());
+        reject(ctx->ph, e.what());
         qianjs::event_loop::defer([ctx](qjs::JSEngine&) { ctx->req_keep.reset(); });
     });
 
@@ -141,7 +131,7 @@ qjs::RawJSValue fsStatAsync(qjs::JSEngine& engine, std::string path) {
 
     req->on<uvw::error_event>([ctx](const uvw::error_event& e, auto&) {
         qianjs::event_loop::end_operation();
-        schedule_reject(ctx->ph, e.what());
+        reject(ctx->ph, e.what());
         qianjs::event_loop::defer([ctx](qjs::JSEngine&) { ctx->req_keep.reset(); });
     });
 
@@ -176,14 +166,14 @@ static qjs::RawJSValue fs_one_path_void(qjs::JSEngine& engine, std::string path,
 
     req->on<uvw::error_event>([ctx](const uvw::error_event& e, auto&) {
         qianjs::event_loop::end_operation();
-        schedule_reject(ctx->ph, e.what());
+        reject(ctx->ph, e.what());
         qianjs::event_loop::defer([ctx](qjs::JSEngine&) { ctx->req_keep.reset(); });
     });
 
     req->on<uvw::fs_event>([ctx, doneType](const uvw::fs_event& ev, uvw::fs_req&) {
         if (ev.type == doneType) {
             qianjs::event_loop::end_operation();
-            schedule_resolve_void(ctx->ph);
+            resolve_void(ctx->ph);
             qianjs::event_loop::defer([ctx](qjs::JSEngine&) { ctx->req_keep.reset(); });
         }
     });

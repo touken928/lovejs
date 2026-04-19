@@ -1,5 +1,7 @@
 #include "native/fs/fs_uv.h"
 
+#include "native/fs/fs_async_schedule.h"
+
 #include "runtime/event_loop/event_loop.h"
 
 #include <uvw.hpp>
@@ -18,41 +20,10 @@
 namespace {
 
 using file_flags = uvw::file_req::file_open_flags;
-
-void schedule_reject(qjs::JSEngine::PromiseHandle ph, std::string msg, const std::string& code = {}) {
-    qianjs::event_loop::defer(
-        [ph, msg = std::move(msg), code](qjs::JSEngine& e) {
-            if (code.empty())
-                e.rejectPromise(ph, msg);
-            else
-                e.rejectPromise(ph, msg, code);
-            e.freePromise(ph);
-        });
-}
-
-void schedule_resolve_string(qjs::JSEngine::PromiseHandle ph, std::string data) {
-    qianjs::event_loop::defer(
-        [ph, data = std::move(data)](qjs::JSEngine& e) {
-            e.resolvePromise(ph, data);
-            e.freePromise(ph);
-        });
-}
-
-void schedule_resolve_void(qjs::JSEngine::PromiseHandle ph) {
-    qianjs::event_loop::defer([ph](qjs::JSEngine& e) {
-        e.resolvePromiseVoid(ph);
-        e.freePromise(ph);
-    });
-}
-
-void schedule_resolve_bytes(qjs::JSEngine::PromiseHandle ph, std::string buffer) {
-    qianjs::event_loop::defer(
-        [ph, buf = std::move(buffer)](qjs::JSEngine& e) {
-            const uint8_t* p = reinterpret_cast<const uint8_t*>(buf.data());
-            e.resolvePromiseBytes(ph, p, buf.size());
-            e.freePromise(ph);
-        });
-}
+using qianjs::fs::schedule::reject;
+using qianjs::fs::schedule::resolve_bytes;
+using qianjs::fs::schedule::resolve_string;
+using qianjs::fs::schedule::resolve_void;
 
 static bool stat_is_dir(const uv_stat_t& st) {
 #ifdef S_ISDIR
@@ -76,16 +47,16 @@ void defer_release_read_req(const std::shared_ptr<FsReadCtx>& ctx) {
 
 void read_done_fail(const std::shared_ptr<FsReadCtx>& ctx, std::string msg) {
     qianjs::event_loop::end_operation();
-    schedule_reject(ctx->ph, std::move(msg));
+    reject(ctx->ph, std::move(msg));
     defer_release_read_req(ctx);
 }
 
 void read_resolve_ok(const std::shared_ptr<FsReadCtx>& ctx) {
     qianjs::event_loop::end_operation();
     if (ctx->as_buffer)
-        schedule_resolve_bytes(ctx->ph, std::move(ctx->buffer));
+        resolve_bytes(ctx->ph, std::move(ctx->buffer));
     else
-        schedule_resolve_string(ctx->ph, std::move(ctx->buffer));
+        resolve_string(ctx->ph, std::move(ctx->buffer));
     defer_release_read_req(ctx);
 }
 
@@ -101,7 +72,7 @@ void defer_release_write_req(const std::shared_ptr<FsWriteCtx>& ctx) {
 
 void write_done_fail(const std::shared_ptr<FsWriteCtx>& ctx, std::string msg) {
     qianjs::event_loop::end_operation();
-    schedule_reject(ctx->ph, std::move(msg));
+    reject(ctx->ph, std::move(msg));
     defer_release_write_req(ctx);
 }
 
@@ -218,7 +189,7 @@ static qjs::RawJSValue write_file_impl(qjs::JSEngine& engine, std::string path, 
             break;
         case ft::CLOSE:
             qianjs::event_loop::end_operation();
-            schedule_resolve_void(ctx->ph);
+            resolve_void(ctx->ph);
             defer_release_write_req(ctx);
             break;
         default:
@@ -250,10 +221,10 @@ qjs::RawJSValue fsMkdirAsync(qjs::JSEngine& engine, std::string path, bool recur
         std::error_code ec;
         std::filesystem::create_directories(std::filesystem::path(path), ec);
         if (ec) {
-            schedule_reject(ph, ec.message());
+            reject(ph, ec.message());
             return engine.promiseValue(ph);
         }
-        schedule_resolve_void(ph);
+        resolve_void(ph);
         return engine.promiseValue(ph);
     }
 
@@ -271,14 +242,14 @@ qjs::RawJSValue fsMkdirAsync(qjs::JSEngine& engine, std::string path, bool recur
 
     req->on<uvw::error_event>([ctx](const uvw::error_event& e, auto&) {
         qianjs::event_loop::end_operation();
-        schedule_reject(ctx->ph, e.what());
+        reject(ctx->ph, e.what());
         qianjs::event_loop::defer([ctx](qjs::JSEngine&) { ctx->req_keep.reset(); });
     });
 
     req->on<uvw::fs_event>([ctx](const uvw::fs_event& ev, uvw::fs_req&) {
         if (ev.type == ft::MKDIR) {
             qianjs::event_loop::end_operation();
-            schedule_resolve_void(ctx->ph);
+            resolve_void(ctx->ph);
             qianjs::event_loop::defer([ctx](qjs::JSEngine&) { ctx->req_keep.reset(); });
         }
     });

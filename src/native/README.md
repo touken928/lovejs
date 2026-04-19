@@ -1,6 +1,8 @@
 # 内置 native 模块（目录约定）
 
-本目录每个子文件夹（如 `console/`、`fs/`、`net/`、`process/`、`timers/`）对应一个 **QuickJS 插件**：在 C++ 里实现 `qjs::JSEngine` 的扩展，对 JS 暴露为内置模块。
+本目录每个子文件夹（如 `console/`、`fs/`、`process/`、`timers/`）对应一个 **QuickJS 插件**：在 C++ 里实现 `qjs::JSEngine` 的扩展，对 JS 暴露为内置模块。
+
+最小可用宿主通常保留 **`console` + `process` + `timers`**（日志、argv/env/退出码与基础定时器）；需要文件 I/O 时再开启 **`fs`**。
 
 ## 管理（CMake）
 
@@ -17,7 +19,7 @@
 2. 在**根** **`CMakeLists.txt`** 里，用 **`if(QIANJS_MODULE_…)`**（多模块共用时 **`OR`** 组合）再 **`include(cmake/xxx.cmake)`**，并对 **`qianjs`** **`target_link_libraries(PRIVATE …)`**。不走进该分支则不会 **`include`**，一般不会配置/编译该第三方，也不会把其 target 链进 **`qianjs`**。
 3. 若运行时或公共代码需要 **`#ifdef`**，再在根里给 **`qianjs`** 加 **`target_compile_definitions`**，条件与第 2 步保持一致。
 
-**当前示例（libuv / uvw）：** 根 **`CMakeLists.txt`** 在 **`QIANJS_BUILD_CLI`** 时**始终** **`include(cmake/libuv.cmake)`**、**`include(cmake/uvw.cmake)`**，第三方 target 始终进入工程。仅当 **`fs`** / **`net`** 任一开启时 **`qianjs`** 才 **链接** **`qianjs::libuv`** / **`qianjs::uvw`**，并定义 **`QIANJS_HAVE_LIBUV`**（**`event_loop`** 是否用 uv 由该宏决定，条件为 **`OR`**）。这与第 2 步「按模块 `include`」的通用做法不同，属于**运行时核心栈**的固定集成方式。
+**当前示例（libuv / uvw）：** 根 **`CMakeLists.txt`** 在 **`QIANJS_BUILD_CLI`** 时**始终** **`include(cmake/libuv.cmake)`**、**`include(cmake/uvw.cmake)`**，第三方 target 始终进入工程。仅当 **`fs`** 开启时 **`qianjs`** 才 **链接** **`qianjs::libuv`** / **`qianjs::uvw`**，并定义 **`QIANJS_HAVE_LIBUV`**（**`event_loop`** 是否用 uv 由该宏决定）。这与第 2 步「按模块 `include`」的通用做法不同，属于**运行时核心栈**的固定集成方式。
 
 配置阶段会在 **`build/generated/`**（或当前 binary dir 下 **`generated/`**）写出 **`qianjs_modules.h`**、**`qianjs_default_plugins.g.h`**（勿手改）。关闭模块示例：`-DQIANJS_MODULE_FS=OFF`。
 
@@ -30,6 +32,5 @@
 
 - [console](console/README.md)
 - [fs](fs/README.md)
-- [net](net/README.md)
 - [process](process/README.md)
 - [timers](timers/README.md)

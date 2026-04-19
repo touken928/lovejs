@@ -1,5 +1,6 @@
 #include "native/fs/fs_sync.h"
 
+#include "native/fs/fs_js_io.h"
 #include "native/fs/fs_stat_js.h"
 
 #include "runtime/event_loop/event_loop.h"
@@ -7,10 +8,11 @@
 #include <js_module.h>
 #include <js_types.h>
 
+#include <climits>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
-#include <sstream>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -20,35 +22,27 @@ namespace {
 
 namespace fs = std::filesystem;
 
-bool read_js_bytes(JSContext* c, JSValue v, std::vector<uint8_t>& out) {
-    if (JS_IsString(v)) {
-        size_t plen = 0;
-        const char* p = JS_ToCStringLen(c, &plen, v);
-        if (!p)
-            return false;
-        out.assign(reinterpret_cast<const uint8_t*>(p), reinterpret_cast<const uint8_t*>(p) + plen);
-        JS_FreeCString(c, p);
-        return true;
-    }
+/** Single read via size preflight (avoids istream iterator byte-by-byte). */
+std::optional<std::vector<uint8_t>> read_entire_file_bin(const fs::path& path) {
+    std::error_code ec;
+    const auto sz_u = fs::file_size(path, ec);
+    if (ec)
+        return std::nullopt;
+    if (sz_u > static_cast<std::uintmax_t>(SIZE_MAX))
+        return std::nullopt;
+    const std::size_t sz = static_cast<std::size_t>(sz_u);
 
-    size_t sz = 0;
-    uint8_t* raw = JS_GetArrayBuffer(c, &sz, v);
-    if (raw) {
-        out.assign(raw, raw + sz);
-        return true;
-    }
+    std::vector<uint8_t> out(sz);
+    if (sz == 0)
+        return out;
 
-    size_t boff = 0, blen = 0, bpe = 0;
-    JSValue buf = JS_GetTypedArrayBuffer(c, v, &boff, &blen, &bpe);
-    if (JS_IsException(buf))
-        return false;
-    size_t ablen = 0;
-    uint8_t* base = JS_GetArrayBuffer(c, &ablen, buf);
-    JS_FreeValue(c, buf);
-    if (!base || boff + blen > ablen || boff > ablen)
-        return false;
-    out.assign(base + boff, base + boff + blen);
-    return true;
+    std::ifstream in(path, std::ios::binary);
+    if (!in)
+        return std::nullopt;
+    in.read(reinterpret_cast<char*>(out.data()), static_cast<std::streamsize>(sz));
+    if (!in || static_cast<std::size_t>(in.gcount()) != sz)
+        return std::nullopt;
+    return out;
 }
 
 JSValue throw_err(JSContext* c, const char* prefix, const std::error_code& ec) {
@@ -63,29 +57,27 @@ void install_fs_sync(qjs::JSModule& sync) {
     sync.funcDynamic("readFile", 1, 1, [](JSContext* c, int argc, JSValue* argv) -> JSValue {
         (void)argc;
         bool ok = false;
-        std::string path = qjs::JSConv<std::string>::from(c, argv[0], ok);
+        std::string pathStr = qjs::JSConv<std::string>::from(c, argv[0], ok);
         if (!ok)
             return JS_EXCEPTION;
-        std::ifstream in(path, std::ios::binary);
-        if (!in)
-            return JS_ThrowTypeError(c, "readFile: cannot open file");
-        std::ostringstream oss;
-        oss << in.rdbuf();
-        const std::string& s = oss.str();
-        return JS_NewStringLen(c, s.data(), s.size());
+        const fs::path path(pathStr);
+        const auto bytes = read_entire_file_bin(path);
+        if (!bytes)
+            return JS_ThrowTypeError(c, "readFile: cannot open or read file");
+        return JS_NewStringLen(c, reinterpret_cast<const char*>(bytes->data()), bytes->size());
     });
 
     sync.funcDynamic("readFileBytes", 1, 1, [](JSContext* c, int argc, JSValue* argv) -> JSValue {
         (void)argc;
         bool ok = false;
-        std::string path = qjs::JSConv<std::string>::from(c, argv[0], ok);
+        std::string pathStr = qjs::JSConv<std::string>::from(c, argv[0], ok);
         if (!ok)
             return JS_EXCEPTION;
-        std::ifstream in(path, std::ios::binary);
-        if (!in)
-            return JS_ThrowTypeError(c, "readFileBytes: cannot open file");
-        std::vector<char> data((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-        return JS_NewArrayBufferCopy(c, reinterpret_cast<const uint8_t*>(data.data()), data.size());
+        const fs::path path(pathStr);
+        const auto bytes = read_entire_file_bin(path);
+        if (!bytes)
+            return JS_ThrowTypeError(c, "readFileBytes: cannot open or read file");
+        return JS_NewArrayBufferCopy(c, bytes->data(), bytes->size());
     });
 
     sync.funcDynamic("writeFile", 2, 2, [](JSContext* c, int argc, JSValue* argv) -> JSValue {
@@ -95,7 +87,7 @@ void install_fs_sync(qjs::JSModule& sync) {
         if (!ok)
             return JS_EXCEPTION;
         std::vector<uint8_t> bytes;
-        if (!read_js_bytes(c, argv[1], bytes))
+        if (!fs_read_js_bytes(c, argv[1], bytes))
             return JS_ThrowTypeError(c, "writeFile: data must be string, ArrayBuffer, or TypedArray");
         std::ofstream out(path, std::ios::binary | std::ios::trunc);
         if (!out)

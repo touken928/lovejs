@@ -134,6 +134,7 @@ const char* TimersPlugin::name() const {
 
 void TimersPlugin::install(qjs::JSEngine& engine, qjs::JSModule& root) {
     (void)engine;
+    qianjs::event_loop::ensure_started();
     auto& m = root.module("timers");
 
     m.funcDynamic("setTimeout", 2, 2, [](JSContext* c, int argc, JSValue* argv) -> JSValue {

@@ -21,11 +21,23 @@ elseif(UNIX)
     set(PLATFORM_LINUX TRUE)
 endif()
 
-option(QIANJS_BUILD_TESTS "Build QianJS tests (third_party/googletest submodule)" ON)
+option(QIANJS_BUILD_TESTS "Build QianJS tests (GoogleTest via FetchContent)" ON)
 
 if(QIANJS_BUILD_TESTS)
-    include(cmake/googletest.cmake)
-    add_subdirectory(tests)
+    enable_testing()
+    include(FetchContent)
+    set(gtest_force_shared_crt OFF CACHE BOOL "" FORCE)
+    set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(
+        googletest
+        GIT_REPOSITORY https://github.com/google/googletest.git
+        GIT_TAG v1.14.0
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(googletest)
+    add_library(qianjs_gtest_main INTERFACE)
+    target_link_libraries(qianjs_gtest_main INTERFACE GTest::gtest_main)
+    add_library(qianjs::gtest_main ALIAS qianjs_gtest_main)
 endif()
 
 include(cmake/qjs.cmake)
@@ -39,27 +51,35 @@ if(QIANJS_BUILD_CLI)
 
     find_package(Threads REQUIRED)
 
-    add_executable(qianjs
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/cli/main.cc
+    add_library(qianjs_impl STATIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/cli/cli_runner.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/event_loop/event_loop.cc
     )
 
-    target_include_directories(qianjs PRIVATE
+    target_include_directories(qianjs_impl PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_BINARY_DIR}/generated
     )
 
-    target_compile_definitions(qianjs PRIVATE
-        "QIANJS_HAVE_LIBUV=$<OR:$<BOOL:${QIANJS_MODULE_FS}>,$<BOOL:${QIANJS_MODULE_NET}>>"
+    target_compile_definitions(qianjs_impl PUBLIC
+        "QIANJS_HAVE_LIBUV=$<BOOL:${QIANJS_MODULE_FS}>"
     )
 
-    target_link_libraries(qianjs PRIVATE
+    target_link_libraries(qianjs_impl PUBLIC
         qjs::qjs
         Threads::Threads
     )
-    if(QIANJS_MODULE_FS OR QIANJS_MODULE_NET)
-        target_link_libraries(qianjs PRIVATE qianjs::libuv qianjs::uvw)
+    if(QIANJS_MODULE_FS)
+        target_link_libraries(qianjs_impl PUBLIC qianjs::libuv qianjs::uvw)
     endif()
+
+    # src/native/CMakeLists.txt: appends module sources, runs qianjs_write_native_glue (see src/native/native_modules.cmake).
+    add_subdirectory(src/native)
+
+    add_executable(qianjs
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/cli/main.cc
+    )
+    target_link_libraries(qianjs PRIVATE qianjs_impl)
 
     if(NOT APPLE)
         target_link_options(qianjs PRIVATE -static-libgcc -static-libstdc++)
@@ -68,13 +88,9 @@ if(QIANJS_BUILD_CLI)
         endif()
     endif()
 
-    # src/native/CMakeLists.txt: appends module sources, runs qianjs_write_native_glue (see src/native/native_modules.cmake).
-    add_subdirectory(src/native)
-
     # 性能优化和二进制压缩
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
-        # GCC/Clang/MinGW 优化
-        target_compile_options(qianjs PRIVATE -O3 -DNDEBUG -ffunction-sections -fdata-sections)
+        target_compile_options(qianjs_impl PRIVATE -O3 -DNDEBUG -ffunction-sections -fdata-sections)
         if(APPLE)
             target_link_options(qianjs PRIVATE -Wl,-dead_strip)
         else()
@@ -82,12 +98,14 @@ if(QIANJS_BUILD_CLI)
         endif()
     endif()
 
-    # 平台特定设置
     if(WIN32)
         if(MSVC)
             message(FATAL_ERROR "MSVC is not supported. Please use MinGW-w64 or Clang on Windows.")
         endif()
-
-        target_compile_definitions(qianjs PRIVATE _CRT_SECURE_NO_WARNINGS)
+        target_compile_definitions(qianjs_impl PUBLIC _CRT_SECURE_NO_WARNINGS)
     endif()
+endif()
+
+if(QIANJS_BUILD_TESTS)
+    add_subdirectory(tests)
 endif()

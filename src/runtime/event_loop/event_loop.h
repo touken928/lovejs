@@ -47,7 +47,7 @@ void defer(std::function<void(qjs::JSEngine&)> fn);
 
 void run_deferred(qjs::JSEngine& engine);
 
-/** Book-keeping for fs/net ops so the host knows when the process can go idle. */
+/** Book-keeping for fs async ops so the host knows when the process can go idle. */
 void begin_operation();
 void end_operation();
 int pending_operations();

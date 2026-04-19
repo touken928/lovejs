@@ -18,9 +18,8 @@
 | `qjs.cmake` | `qjs`（内含 QuickJS FetchContent） | `qjs::qjs`、`qjs::quickjs`（上游命名，保持不变） |
 | `libuv.cmake` | `libuv` | `qianjs::libuv` → `ALIAS` `uv_a` |
 | `uvw.cmake` | `uvw` | `qianjs::uvw`：`INTERFACE` 库再 `ALIAS`（因上游 `uvw::uvw` 已是 `ALIAS`，CMake 禁止链式 `ALIAS`） |
-| `googletest.cmake` | `googletest` | `qianjs::gtest_main`：同上，经 `INTERFACE` 包一层再 `ALIAS` |
 
-可执行文件 **`qianjs`** 在根 `CMakeLists.txt` 里链接 **`qjs::qjs`** 等。其它 **`cmake/*.cmake`** 可按模块 **`if(QIANJS_MODULE_…)`** **`include`**，并仅在需要时 **`target_link_libraries(qianjs …)`**。例外：**`libuv.cmake`** / **`uvw.cmake`** 在 **`QIANJS_BUILD_CLI`** 时**总是** **`include`**（运行时固定依赖第三方 target）；**`qianjs`** 是否链接它们、是否定义 **`QIANJS_HAVE_LIBUV`** 仍由 **`fs`/`net`** 决定。脚本带幂等保护。内置模块源码与胶水生成见 **`src/native/`**（**`CMakeLists.txt`**、**`native_modules.cmake`**）。约定说明见 **`src/native/README.md`**。
+可执行文件 **`qianjs`** 链接静态库 **`qianjs_impl`**（CLI + **`event_loop`** + 启用的 native 模块）；**`qjs::qjs`**、**`Threads`**、按需 **`libuv`/`uvw`** 挂在 **`qianjs_impl`** 上。其它 **`cmake/*.cmake`** 可按模块 **`if(QIANJS_MODULE_…)`** **`include`**，并仅在需要时 **`target_link_libraries(qianjs …)`**。例外：**`libuv.cmake`** / **`uvw.cmake`** 在 **`QIANJS_BUILD_CLI`** 时**总是** **`include`**（运行时固定依赖第三方 target）；**`qianjs`** 是否链接它们、是否定义 **`QIANJS_HAVE_LIBUV`** 仍由 **`fs`** 决定。脚本带幂等保护。内置模块源码与胶水生成见 **`src/native/`**（**`CMakeLists.txt`**、**`native_modules.cmake`**）。约定说明见 **`src/native/README.md`**。
 
 ## 新增第三方库时
 

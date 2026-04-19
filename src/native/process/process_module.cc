@@ -5,12 +5,49 @@
 #include <js_engine.h>
 #include <js_module.h>
 #include <js_types.h>
+#include <quickjs.h>
 
+#include <filesystem>
 #include <string>
 #include <utility>
 #include <vector>
 
+#ifdef _WIN32
+#include <process.h>
+#else
+#include <unistd.h>
+#endif
+
 namespace {
+
+namespace fs_ns = std::filesystem;
+
+static int current_pid() {
+#ifdef _WIN32
+    return static_cast<int>(_getpid());
+#else
+    return static_cast<int>(::getpid());
+#endif
+}
+
+static const char* platform_id() {
+#ifdef _WIN32
+    return "win32";
+#elif defined(__APPLE__)
+    return "darwin";
+#else
+    return "linux";
+#endif
+}
+
+static std::string current_working_directory() {
+    std::error_code ec;
+    fs_ns::path p = fs_ns::current_path(ec);
+    if (ec)
+        return {};
+    return p.string();
+}
+
 
 JSValue argv_to_js(JSContext* c, const std::vector<std::string>& argv) {
     JSValue arr = JS_NewArray(c);
@@ -50,6 +87,25 @@ void ProcessPlugin::install(qjs::JSEngine& engine, qjs::JSModule& root) {
     qianjs::RuntimeContext* runtime = engine.host<qianjs::RuntimeContext>();
     auto& m = root.module("process");
 
+    m.funcDynamic("pid", 0, 0, [](JSContext* c, int argc, JSValue* argv) -> JSValue {
+        (void)argc;
+        (void)argv;
+        return JS_NewInt32(c, current_pid());
+    });
+
+    m.funcDynamic("platform", 0, 0, [](JSContext* c, int argc, JSValue* argv) -> JSValue {
+        (void)argc;
+        (void)argv;
+        return JS_NewString(c, platform_id());
+    });
+
+    m.funcDynamic("cwd", 0, 0, [](JSContext* c, int argc, JSValue* argv) -> JSValue {
+        (void)argc;
+        (void)argv;
+        std::string path = current_working_directory();
+        return JS_NewString(c, path.c_str());
+    });
+
     m.funcDynamic("argv", 0, 0, [runtime](JSContext* c, int argc, JSValue* argv) -> JSValue {
         (void)argc;
         (void)argv;
@@ -75,9 +131,11 @@ void ProcessPlugin::install(qjs::JSEngine& engine, qjs::JSModule& root) {
         return JS_UNDEFINED;
     });
 
-    m.func("getExitCode", [runtime]() -> int {
+    const auto read_exit_code = [runtime]() -> int {
         return runtime ? runtime->exit_code : 0;
-    });
+    };
+    m.func("getExitCode", read_exit_code);
+    m.func("exitCode", read_exit_code);
 
     m.func("setExitCode", [runtime](int code) {
         if (runtime)

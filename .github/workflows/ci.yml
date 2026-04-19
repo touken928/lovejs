@@ -1,0 +1,34 @@
+# Linux 上构建并运行 qianjs_tests（GoogleTest / ctest）。
+
+name: Linux unit tests
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential cmake
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DQIANJS_BUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build -j "$(nproc)"
+
+      - name: Unit tests (ctest)
+        run: ctest --test-dir build --output-on-failure
